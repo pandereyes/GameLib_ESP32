@@ -7,6 +7,8 @@ void port_display_deinit(void);
 void port_display_flush(const void *fb, int x, int y, int w, int h);
 void port_display_wait_vsync(void);
 void port_display_backlight(uint8_t level);
+void *port_display_alloc_fb(size_t size);
+void port_display_free_fb(void *fb);
 
 void port_input_init(void);
 void port_input_poll(void);
@@ -39,6 +41,8 @@ void gamelib_port_register_hal(void)
     g_hal.display.flush      = port_display_flush;
     g_hal.display.wait_vsync = port_display_wait_vsync;
     g_hal.display.backlight  = port_display_backlight;
+    g_hal.display.alloc_fb   = port_display_alloc_fb;
+    g_hal.display.free_fb    = port_display_free_fb;
 
     g_hal.input.init       = port_input_init;
     g_hal.input.poll       = port_input_poll;

@@ -6,6 +6,7 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
 #include "esp_lcd_panel_ops.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 
 static const char *TAG = "port_display";
@@ -114,4 +115,14 @@ void port_display_wait_vsync(void) { }
 void port_display_backlight(uint8_t level)
 {
     port_backlight_set(level);
+}
+
+void *port_display_alloc_fb(size_t size)
+{
+    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+}
+
+void port_display_free_fb(void *fb)
+{
+    free(fb);
 }

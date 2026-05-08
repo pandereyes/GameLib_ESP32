@@ -16,12 +16,18 @@ int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
     g->fb.clip_h = h;
     g->target_fps = target_fps;
 
-    g->fb.pixels = (gamelib_color_t*)calloc(w * h, sizeof(gamelib_color_t));
+    size_t fb_size = w * h * sizeof(gamelib_color_t);
+    if (g_hal.display.alloc_fb) {
+        g->fb.pixels = (gamelib_color_t*)g_hal.display.alloc_fb(fb_size);
+    } else {
+        g->fb.pixels = (gamelib_color_t*)calloc(1, fb_size);
+    }
     if (!g->fb.pixels) return -1;
 
     if (g_hal.display.init) {
         if (g_hal.display.init() != 0) {
-            free(g->fb.pixels);
+            if (g_hal.display.free_fb) g_hal.display.free_fb(g->fb.pixels);
+            else free(g->fb.pixels);
             return -1;
         }
     }
@@ -41,7 +47,8 @@ void gamelib_deinit(gamelib_t *g)
     for (int i = 0; i < MAX_SPRITES; i++) {
         gamelib_sprite_free(g, i);
     }
-    free(g->fb.pixels);
+    if (g_hal.display.free_fb) g_hal.display.free_fb(g->fb.pixels);
+    else free(g->fb.pixels);
     g->fb.pixels = NULL;
     g->running = false;
 }

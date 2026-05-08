@@ -5,12 +5,13 @@ static void draw_char(gamelib_t *g, int x, int y, char ch, gamelib_color_t c, in
 {
     const uint8_t *glyph = font_8x8[(unsigned char)ch];
     framebuffer_t *fb = &g->fb;
+    /* 90deg CCW: (col, row) -> (row, 7-col) */
     for (int row = 0; row < 8; row++) {
         uint8_t bits = glyph[row];
         for (int col = 0; col < 8; col++) {
             if (bits & (1 << (7 - col))) {
-                int px = x + col * sw;
-                int py = y + row * sh;
+                int px = x + row * sw;
+                int py = y + (7 - col) * sh;
                 for (int sy = 0; sy < sh; sy++) {
                     for (int sx = 0; sx < sw; sx++) {
                         int fx = px + sx;
