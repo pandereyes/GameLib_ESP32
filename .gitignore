@@ -1,0 +1,17 @@
+# ESP-IDF
+build/
+sdkconfig.old
+managed_components/
+
+# C/C++
+*.o
+*.obj
+*.elf
+*.map
+*.bin
+*.hex
+*.a
+*.lib
+
+# VS Code
+.vscode/

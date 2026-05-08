@@ -38,9 +38,9 @@ void app_main(void)
         gamelib_draw_number(&game, 5, 300, (int)gamelib_get_fps(&game), COLOR_GREEN);
         gamelib_draw_text(&game, 40, 300, "FPS", COLOR_GREEN);
 
-        gamelib_draw_rect(&game, 10, 40, 50, 30, COLOR_CYAN);
-        gamelib_fill_circle(&game, 200, 55, 15, COLOR_MAGENTA);
-        gamelib_draw_line(&game, 10, 80, 80, 120, COLOR_YELLOW);
+        // gamelib_draw_rect(&game, 10, 40, 50, 30, COLOR_CYAN);
+        // gamelib_fill_circle(&game, 200, 55, 15, COLOR_MAGENTA);
+        // gamelib_draw_line(&game, 10, 80, 80, 120, COLOR_YELLOW);
 
         if (gamelib_is_key_down(&game, KEY_LEFT))  player_x -= 2;
         if (gamelib_is_key_down(&game, KEY_RIGHT)) player_x += 2;

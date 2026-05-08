@@ -2,6 +2,7 @@
 #define HAL_AUDIO_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct {
     int  (*init)(void);

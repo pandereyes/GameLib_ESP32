@@ -35,6 +35,9 @@ void port_input_init(void)
         gpio_set_direction(key_map[i].gpio, GPIO_MODE_INPUT);
         gpio_set_pull_mode(key_map[i].gpio, key_map[i].active_low ? GPIO_PULLUP_ONLY : GPIO_PULLDOWN_ONLY);
     }
+
+    /* Init I2C and QMI8658 accelerometer */
+    bsp_qmi8658_init();
 }
 
 void port_input_poll(void)
@@ -46,27 +49,27 @@ void port_input_poll(void)
         key_state[key_map[i].key] = key_map[i].active_low ? (level == 0) : (level == 1);
     }
 
-    /* QMI8658 tilt mapping */
+    /* QMI8658 tilt mapping — axes swapped for landscape display */
     qmi8658_data_t data;
     bsp_qmi8658_read_data(&data);
 
-    bool tilt_left  = (data.acc_x < -PORT_TILT_THRESHOLD);
-    bool tilt_right = (data.acc_x >  PORT_TILT_THRESHOLD);
-    bool tilt_up    = (data.acc_y < -PORT_TILT_THRESHOLD);
-    bool tilt_down  = (data.acc_y >  PORT_TILT_THRESHOLD);
+    bool tilt_right = (data.acc_y < -PORT_TILT_THRESHOLD);
+    bool tilt_left  = (data.acc_y >  PORT_TILT_THRESHOLD);
+    bool tilt_down  = (data.acc_x >  PORT_TILT_THRESHOLD);
+    bool tilt_up    = (data.acc_x < -PORT_TILT_THRESHOLD);
 
     key_state[KEY_LEFT]  |= tilt_left;
     key_state[KEY_RIGHT] |= tilt_right;
     key_state[KEY_UP]    |= tilt_up;
     key_state[KEY_DOWN]  |= tilt_down;
 
-    /* map tilt to mouse coords */
-    mouse_x = 120 + (data.acc_x * 120) / 16000;
-    mouse_y = 160 + (data.acc_y * 160) / 16000;
+    /* map tilt to mouse coords (landscape 320x240) */
+    mouse_x = 160 + (data.acc_y * 160) / 16000;
+    mouse_y = 120 + (data.acc_x * 120) / 16000;
     if (mouse_x < 0) mouse_x = 0;
-    if (mouse_x > 239) mouse_x = 239;
+    if (mouse_x > 319) mouse_x = 319;
     if (mouse_y < 0) mouse_y = 0;
-    if (mouse_y > 319) mouse_y = 319;
+    if (mouse_y > 239) mouse_y = 239;
 
     mouse_pressed = (abs(data.acc_z) > 16000);
 }
