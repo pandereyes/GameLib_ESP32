@@ -1,0 +1,141 @@
+#include "gamelib.h"
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+gamelib_hal_t g_hal;
+
+int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
+{
+    memset(g, 0, sizeof(*g));
+    g->fb.width = w;
+    g->fb.height = h;
+    g->fb.clip_x = 0;
+    g->fb.clip_y = 0;
+    g->fb.clip_w = w;
+    g->fb.clip_h = h;
+    g->target_fps = target_fps;
+
+    g->fb.pixels = (gamelib_color_t*)calloc(w * h, sizeof(gamelib_color_t));
+    if (!g->fb.pixels) return -1;
+
+    if (g_hal.display.init) {
+        if (g_hal.display.init() != 0) {
+            free(g->fb.pixels);
+            return -1;
+        }
+    }
+    if (g_hal.input.init)  g_hal.input.init();
+    if (g_hal.timer.init)  g_hal.timer.init();
+    if (g_hal.audio.init)  g_hal.audio.init();
+
+    g->running = true;
+    g->frame_start = (double)g_hal.timer.micros() / 1000000.0;
+    return 0;
+}
+
+void gamelib_deinit(gamelib_t *g)
+{
+    if (g_hal.display.deinit) g_hal.display.deinit();
+    if (g_hal.audio.deinit)   g_hal.audio.deinit();
+    for (int i = 0; i < MAX_SPRITES; i++) {
+        gamelib_sprite_free(g, i);
+    }
+    free(g->fb.pixels);
+    g->fb.pixels = NULL;
+    g->running = false;
+}
+
+bool gamelib_is_closed(gamelib_t *g)
+{
+    return !g->running;
+}
+
+void gamelib_update(gamelib_t *g)
+{
+    if (!g->running) return;
+
+    /* flush */
+    if (g_hal.display.flush) {
+        g_hal.display.flush(g->fb.pixels, 0, 0, g->fb.width, g->fb.height);
+    }
+
+    /* input */
+    if (g_hal.input.poll) {
+        g_hal.input.poll();
+        for (int i = 0; i < KEY_COUNT; i++) {
+            g->key_prev[i] = g->keystate[i];
+            g->keystate[i] = g_hal.input.is_down((hal_key_t)i) ? 1 : 0;
+        }
+        g->mouse_x = g_hal.input.mouse_x ? g_hal.input.mouse_x() : 0;
+        g->mouse_y = g_hal.input.mouse_y ? g_hal.input.mouse_y() : 0;
+    }
+}
+
+void gamelib_wait_frame(gamelib_t *g)
+{
+    if (!g->running) return;
+    double now = (double)g_hal.timer.micros() / 1000000.0;
+    g->delta_time = now - g->frame_start;
+    double target = 1.0 / (double)g->target_fps;
+    if (g->delta_time < target) {
+        uint32_t sleep_ms = (uint32_t)((target - g->delta_time) * 1000.0);
+        g_hal.timer.sleep_ms(sleep_ms);
+        now = (double)g_hal.timer.micros() / 1000000.0;
+        g->delta_time = now - g->frame_start;
+    }
+    if (g->delta_time > 0.0) {
+        g->fps = 1.0 / g->delta_time;
+    }
+    g->frame_start = now;
+}
+
+double gamelib_get_fps(gamelib_t *g)
+{
+    return g->fps;
+}
+
+/* --- input --- */
+bool gamelib_is_key_down(gamelib_t *g, int key)
+{
+    if (key < 0 || key >= KEY_COUNT) return false;
+    return g->keystate[key] != 0;
+}
+
+bool gamelib_is_key_pressed(gamelib_t *g, int key)
+{
+    if (key < 0 || key >= KEY_COUNT) return false;
+    return g->keystate[key] != 0 && g->key_prev[key] == 0;
+}
+
+bool gamelib_is_key_released(gamelib_t *g, int key)
+{
+    if (key < 0 || key >= KEY_COUNT) return false;
+    return g->keystate[key] == 0 && g->key_prev[key] != 0;
+}
+
+int gamelib_mouse_x(gamelib_t *g) { return g->mouse_x; }
+int gamelib_mouse_y(gamelib_t *g) { return g->mouse_y; }
+
+/* --- helpers --- */
+int gamelib_random(int minVal, int maxVal)
+{
+    return minVal + (rand() % (maxVal - minVal + 1));
+}
+
+bool gamelib_rect_overlap(int x1,int y1,int w1,int h1, int x2,int y2,int w2,int h2)
+{
+    return (x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2);
+}
+
+bool gamelib_point_in_rect(int px,int py, int x,int y,int w,int h)
+{
+    return (px >= x && px < x + w && py >= y && py < y + h);
+}
+
+float gamelib_distance_f(int x1,int y1, int x2,int y2)
+{
+    float dx = (float)(x2 - x1);
+    float dy = (float)(y2 - y1);
+    return sqrtf(dx * dx + dy * dy);
+}
