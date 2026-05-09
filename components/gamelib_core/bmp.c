@@ -64,13 +64,16 @@ int gamelib_sprite_load_bmp(gamelib_t *g, const uint8_t *data, size_t len)
                 /* BGR888 -> RGB565 */
                 uint8_t b = px[0], g = px[1], r = px[2];
                 c = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+                c = (c >> 8) | (c << 8);
             } else if (bpp == 32) {
                 /* BGRA8888 -> RGB565 */
                 uint8_t b = px[0], g = px[1], r = px[2];
                 c = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+                c = (c >> 8) | (c << 8);
             } else if (bpp == 16) {
                 /* Already RGB565 (or BGR555, handle common case) */
                 c = ((gamelib_color_t)px[1] << 8) | px[0];
+                c = (c >> 8) | (c << 8);
             } else {
                 c = COLOR_MAGENTA;  /* unsupported format indicator */
             }

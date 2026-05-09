@@ -24,12 +24,12 @@
 #define PORT_LCD_BL_FREQ_HZ     10000
 
 /* === Input: GPIO Keys === */
-#define PORT_KEY_PIN_UP         4
-#define PORT_KEY_PIN_DOWN       5
+#define PORT_KEY_PIN_UP         2
+#define PORT_KEY_PIN_DOWN       4
 #define PORT_KEY_PIN_LEFT       6
-#define PORT_KEY_PIN_RIGHT      7
-#define PORT_KEY_PIN_A          8
-#define PORT_KEY_PIN_B          9
+#define PORT_KEY_PIN_RIGHT      16
+#define PORT_KEY_PIN_A          17
+#define PORT_KEY_PIN_B          18
 
 /* === Input: QMI8658 (I2C) === */
 #define PORT_I2C_NUM            I2C_NUM_0
@@ -38,7 +38,7 @@
 #define PORT_TILT_THRESHOLD     500    /* raw accel threshold */
 
 /* === Audio: PWM Buzzer === */
-#define PORT_BUZZER_GPIO        2
+#define PORT_BUZZER_GPIO        21
 #define PORT_BUZZER_LEDC_TIMER  LEDC_TIMER_1
 #define PORT_BUZZER_LEDC_MODE   LEDC_LOW_SPEED_MODE
 #define PORT_BUZZER_LEDC_CH     LEDC_CHANNEL_2

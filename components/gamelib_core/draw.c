@@ -132,10 +132,10 @@ void gamelib_draw_ellipse(gamelib_t *g, int cx, int cy, int rx, int ry, gamelib_
         fb_set_pixel(&g->fb, cx - x, cy - y, c);
         y--; py -= twoRx2;
         if (p > 0.0) {
-            x++; px += twoRy2;
-            p += ry2 + px - py;
+            p += rx2 - py;
         } else {
-            p += ry2 - py;
+            x++; px += twoRy2;
+            p += rx2 - py + px;
         }
     }
 }
@@ -178,10 +178,10 @@ void gamelib_fill_ellipse(gamelib_t *g, int cx, int cy, int rx, int ry, gamelib_
         if (y > 0) fb_hline(&g->fb, cx - x, cx + x, cy - y, c);
         y--; py -= twoRx2;
         if (p > 0.0) {
-            x++; px += twoRy2;
-            p += ry2 + px - py;
+            p += rx2 - py;
         } else {
-            p += ry2 - py;
+            x++; px += twoRy2;
+            p += rx2 - py + px;
         }
     }
 }
