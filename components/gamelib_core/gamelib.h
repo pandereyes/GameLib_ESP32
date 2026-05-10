@@ -16,6 +16,10 @@ extern "C" {
 
 #define MAX_SPRITES 64
 
+/* --- sprite flip flags --- */
+#define SPRITE_FLIP_H  1
+#define SPRITE_FLIP_V  2
+
 /* --- sprite --- */
 typedef struct {
     gamelib_color_t *pixels;
@@ -111,6 +115,11 @@ void gamelib_sprite_set_pixel(gamelib_t *g, int id, int x, int y, gamelib_color_
 void gamelib_draw_sprite(gamelib_t *g, int id, int x, int y);
 void gamelib_draw_sprite_region(gamelib_t *g, int id, int x,int y,
                                 int sx,int sy,int sw,int sh);
+void gamelib_draw_sprite_ex(gamelib_t *g, int id, int x, int y, int flags);
+void gamelib_draw_sprite_scaled(gamelib_t *g, int id, int x, int y, int dst_w, int dst_h);
+void gamelib_draw_sprite_frame_scaled(gamelib_t *g, int id, int x, int y,
+                                       int fw, int fh, int frame, int dst_w, int dst_h,
+                                       int flags);
 int  gamelib_sprite_width(gamelib_t *g, int id);
 int  gamelib_sprite_height(gamelib_t *g, int id);
 void gamelib_sprite_set_color_key(gamelib_t *g, int id, gamelib_color_t c);
