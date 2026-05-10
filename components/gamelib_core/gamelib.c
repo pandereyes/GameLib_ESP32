@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 gamelib_hal_t g_hal;
 
@@ -35,8 +37,9 @@ int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
     if (g_hal.timer.init)  g_hal.timer.init();
     if (g_hal.audio.init)  g_hal.audio.init();
 
-    g->running = true;
     g->frame_start = (double)g_hal.timer.micros() / 1000000.0;
+    g->start_time  = g->frame_start;
+    g->running = true;
     return 0;
 }
 
@@ -102,6 +105,27 @@ double gamelib_get_fps(gamelib_t *g)
     return g->fps;
 }
 
+double gamelib_get_time(gamelib_t *g)
+{
+    double now = (double)g_hal.timer.micros() / 1000000.0;
+    return now - g->start_time;
+}
+
+double gamelib_get_delta_time(gamelib_t *g)
+{
+    return g->delta_time;
+}
+
+int gamelib_get_width(gamelib_t *g)
+{
+    return g->fb.width;
+}
+
+int gamelib_get_height(gamelib_t *g)
+{
+    return g->fb.height;
+}
+
 /* --- input --- */
 bool gamelib_is_key_down(gamelib_t *g, int key)
 {
@@ -123,6 +147,16 @@ bool gamelib_is_key_released(gamelib_t *g, int key)
 
 int gamelib_mouse_x(gamelib_t *g) { return g->mouse_x; }
 int gamelib_mouse_y(gamelib_t *g) { return g->mouse_y; }
+
+void gamelib_draw_printf(gamelib_t *g, int x, int y, gamelib_color_t c, const char *fmt, ...)
+{
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    gamelib_draw_text(g, x, y, buf, c);
+}
 
 /* --- helpers --- */
 int gamelib_random(int minVal, int maxVal)

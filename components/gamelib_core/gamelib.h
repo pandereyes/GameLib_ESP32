@@ -42,6 +42,7 @@ typedef struct {
     double        delta_time;
     double        fps;
     double        frame_start;
+    double        start_time;    /* init 时刻时间戳(秒) */
     int           target_fps;
 
     sprite_t      sprites[MAX_SPRITES];
@@ -70,6 +71,12 @@ void   gamelib_update(gamelib_t *g);
 void   gamelib_wait_frame(gamelib_t *g);
 double gamelib_get_fps(gamelib_t *g);
 
+/* --- time --- */
+double gamelib_get_time(gamelib_t *g);
+double gamelib_get_delta_time(gamelib_t *g);
+int    gamelib_get_width(gamelib_t *g);
+int    gamelib_get_height(gamelib_t *g);
+
 /* --- drawing --- */
 void gamelib_clear(gamelib_t *g, gamelib_color_t color);
 void gamelib_set_pixel(gamelib_t *g, int x, int y, gamelib_color_t c);
@@ -94,6 +101,7 @@ void gamelib_draw_text(gamelib_t *g, int x, int y, const char *s, gamelib_color_
 void gamelib_draw_text_scale(gamelib_t *g, int x,int y, const char *s,
                              gamelib_color_t c, int scale_w, int scale_h);
 void gamelib_draw_number(gamelib_t *g, int x, int y, int n, gamelib_color_t c);
+void gamelib_draw_printf(gamelib_t *g, int x, int y, gamelib_color_t c, const char *fmt, ...);
 
 /* --- sprite --- */
 int  gamelib_sprite_create(gamelib_t *g, int w, int h);
