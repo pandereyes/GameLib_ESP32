@@ -45,6 +45,9 @@ void app_main(void)
 
     int player_x = 112, player_y = 152;
     int frame = 0, frame_timer = 0;
+    int master_vol = 1000;
+    int beep_note = 0;
+    int beep_notes[] = {262, 330, 392, 523};  /* C E G C5 */
 
     while (!gamelib_is_closed(&game)) {
         gamelib_clear(&game, COLOR_DARKGRAY);
@@ -53,9 +56,13 @@ void app_main(void)
         int h = gamelib_get_height(&game);
 
         /* HUD */
-        gamelib_draw_printf(&game, 5, 5, COLOR_WHITE, "GameLib ESP32 MVE v3");
-        gamelib_draw_printf(&game, 5, h - 35, COLOR_GREEN, "FPS: %.0f", gamelib_get_fps(&game));
-        gamelib_draw_printf(&game, 5, h - 20, COLOR_CYAN, "Time: %.1fs", gamelib_get_time(&game));
+        gamelib_draw_printf(&game, 5, 5, COLOR_WHITE, "GameLib ESP32 MVE v4");
+        gamelib_draw_printf(&game, 5, h - 50, COLOR_GREEN, "FPS: %.0f", gamelib_get_fps(&game));
+        gamelib_draw_printf(&game, 5, h - 35, COLOR_CYAN, "Time: %.1fs", gamelib_get_time(&game));
+
+        /* Batch3: Audio volume bar + status */
+        gamelib_draw_printf(&game, 5, h - 20, COLOR_YELLOW, "Vol: %d/1000", master_vol);
+        gamelib_fill_rect(&game, 80, h - 18, master_vol / 10, 8, COLOR_GOLD);
 
         /* Original drawing */
         gamelib_draw_rect(&game, 10, 40, 50, 30, COLOR_CYAN);
@@ -94,8 +101,17 @@ void app_main(void)
         if (gamelib_is_key_down(&game, KEY_DOWN))  player_y += 2;
 
         if (gamelib_is_key_pressed(&game, KEY_A)) {
-            gamelib_play_beep(&game, 880, 100);
-            gamelib_draw_printf(&game, 5, h - 50, COLOR_YELLOW, "Beep! A pressed");
+            beep_note = (beep_note + 1) % 4;
+            gamelib_play_beep(&game, beep_notes[beep_note], 150);
+        }
+
+        /* Batch3: Volume control via KEY_B + UP/DOWN */
+        if (gamelib_is_key_down(&game, KEY_B)) {
+            if (gamelib_is_key_down(&game, KEY_UP) && master_vol < 1000)
+                master_vol += 20;
+            if (gamelib_is_key_down(&game, KEY_DOWN) && master_vol > 0)
+                master_vol -= 20;
+            gamelib_set_master_volume(&game, master_vol);
         }
 
         if (player_x < 0) player_x = 0;

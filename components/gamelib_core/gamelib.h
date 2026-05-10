@@ -135,6 +135,20 @@ int  gamelib_mouse_y(gamelib_t *g);
 void gamelib_play_beep(gamelib_t *g, int freq, int duration_ms);
 void gamelib_stop_beep(gamelib_t *g);
 
+/* --- wav audio --- */
+int  gamelib_play_wav(gamelib_t *g, const uint8_t *wav_data, int channel, int volume);
+void gamelib_stop_wav(gamelib_t *g, int channel);
+void gamelib_stop_all_wav(gamelib_t *g);
+bool gamelib_is_wav_playing(gamelib_t *g, int channel);
+void gamelib_set_wav_volume(gamelib_t *g, int channel, int volume);
+void gamelib_set_master_volume(gamelib_t *g, int volume);
+int  gamelib_get_master_volume(gamelib_t *g);
+
+/* --- music --- */
+int  gamelib_play_music(gamelib_t *g, const uint8_t *wav_data);
+void gamelib_stop_music(gamelib_t *g);
+bool gamelib_is_music_playing(gamelib_t *g);
+
 /* --- helpers --- */
 int  gamelib_random(int minVal, int maxVal);
 bool gamelib_rect_overlap(int x1,int y1,int w1,int h1, int x2,int y2,int w2,int h2);

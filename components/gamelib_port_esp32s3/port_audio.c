@@ -3,10 +3,19 @@
 #include "driver/ledc.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include <string.h>
+
+#ifdef PORT_AUDIO_USE_I2S
+#include "driver/i2s.h"
+#endif
 
 static const char *TAG = "port_audio";
 static esp_timer_handle_t beep_timer = NULL;
 static bool beeping = false;
+static int master_volume = 1000;
+static bool pcm_playing = false;
+
+/* ============== Beeper (unchanged logic) ============== */
 
 static void beep_timer_cb(void *arg)
 {
@@ -14,6 +23,123 @@ static void beep_timer_cb(void *arg)
     ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
     beeping = false;
 }
+
+/* ============== PWM DAC (default) ============== */
+
+#ifndef PORT_AUDIO_USE_I2S
+
+#define PWM_DAC_SAMPLE_RATE 22050
+
+static const uint8_t *pcm_data;
+static int pcm_len;
+static int pcm_pos;
+static esp_timer_handle_t pcm_timer = NULL;
+
+/* forward declarations */
+static void port_audio_stop_pcm(void);
+static bool port_audio_is_pcm_playing(void);
+
+static void pcm_timer_cb(void *arg)
+{
+    if (!pcm_playing || pcm_pos >= pcm_len) {
+        ledc_set_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH, 0);
+        ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
+        if (pcm_pos >= pcm_len) pcm_playing = false;
+        return;
+    }
+    uint8_t sample = pcm_data[pcm_pos++];
+    uint32_t duty = (uint32_t)sample * master_volume / 1000;
+    ledc_set_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH, duty);
+    ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
+}
+
+static int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels)
+{
+    (void)bits; (void)channels;
+    port_audio_stop_pcm();
+    pcm_data = data;
+    pcm_len = len;
+    pcm_pos = 0;
+    pcm_playing = true;
+
+    const esp_timer_create_args_t timer_args = {
+        .callback = pcm_timer_cb, .name = "pcm_timer"
+    };
+    if (!pcm_timer) esp_timer_create(&timer_args, &pcm_timer);
+    esp_timer_start_periodic(pcm_timer, 1000000 / sample_rate);
+    return 0;
+}
+
+static void port_audio_stop_pcm(void)
+{
+    pcm_playing = false;
+    if (pcm_timer) {
+        esp_timer_stop(pcm_timer);
+        esp_timer_delete(pcm_timer);
+        pcm_timer = NULL;
+    }
+    ledc_set_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH, 0);
+    ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
+}
+
+static bool port_audio_is_pcm_playing(void) { return pcm_playing; }
+
+/* ============== I2S DAC ============== */
+
+#else
+
+/* forward declarations */
+static void port_audio_stop_pcm(void);
+
+static int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels)
+{
+    port_audio_stop_pcm();
+
+    i2s_config_t i2s_cfg = {
+        .mode = I2S_MODE_MASTER | I2S_MODE_TX,
+        .sample_rate = (uint32_t)sample_rate,
+        .bits_per_sample = (i2s_bits_per_sample_t)bits,
+        .channel_format = (channels == 2) ? I2S_CHANNEL_FMT_RIGHT_LEFT : I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+        .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+        .dma_buf_count = 4,
+        .dma_buf_len = 512,
+        .use_apll = false,
+    };
+    i2s_driver_install(PORT_I2S_NUM, &i2s_cfg, 0, NULL);
+
+    i2s_pin_config_t pin_cfg = {
+        .bck_io_num = PORT_I2S_BCK_PIN,
+        .ws_io_num  = PORT_I2S_WS_PIN,
+        .data_out_num = PORT_I2S_DOUT_PIN,
+        .data_in_num = I2S_PIN_NO_CHANGE,
+    };
+    i2s_set_pin(PORT_I2S_NUM, &pin_cfg);
+
+    size_t written;
+    pcm_playing = true;
+    i2s_write(PORT_I2S_NUM, data, (size_t)len, &written, portMAX_DELAY);
+    pcm_playing = false;
+    i2s_driver_uninstall(PORT_I2S_NUM);
+    return 0;
+}
+
+static void port_audio_stop_pcm(void) { pcm_playing = false; }
+
+static bool port_audio_is_pcm_playing(void) { return pcm_playing; }
+
+#endif /* PORT_AUDIO_USE_I2S */
+
+/* ============== Volume ============== */
+
+static void port_audio_set_volume(int vol)
+{
+    if (vol < 0) vol = 0;
+    if (vol > 1000) vol = 1000;
+    master_volume = vol;
+}
+
+/* ============== Init / Deinit ============== */
 
 int port_audio_init(void)
 {
@@ -38,11 +164,15 @@ int port_audio_init(void)
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
     const esp_timer_create_args_t timer_args = {
-        .callback = beep_timer_cb,
-        .name = "beep_timer"
+        .callback = beep_timer_cb, .name = "beep_timer"
     };
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &beep_timer));
+
+#ifdef PORT_AUDIO_USE_I2S
     return 44100;
+#else
+    return PWM_DAC_SAMPLE_RATE;
+#endif
 }
 
 void port_audio_deinit(void)
@@ -52,18 +182,25 @@ void port_audio_deinit(void)
         esp_timer_delete(beep_timer);
         beep_timer = NULL;
     }
+#ifndef PORT_AUDIO_USE_I2S
+    if (pcm_timer) {
+        esp_timer_stop(pcm_timer);
+        esp_timer_delete(pcm_timer);
+        pcm_timer = NULL;
+    }
+#else
+    i2s_driver_uninstall(PORT_I2S_NUM);
+#endif
 }
 
 void port_audio_beep(int freq_hz, int duration_ms)
 {
     if (freq_hz <= 0) return;
-
     ledc_set_freq(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_TIMER, (uint32_t)freq_hz);
     uint32_t duty_max = (1 << PORT_BUZZER_DUTY_RES) - 1;
     ledc_set_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH, duty_max / 2);
     ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
     beeping = true;
-
     if (duration_ms > 0 && beep_timer) {
         esp_timer_stop(beep_timer);
         ESP_ERROR_CHECK(esp_timer_start_once(beep_timer, duration_ms * 1000));
@@ -78,7 +215,4 @@ void port_audio_stop(void)
     if (beep_timer) esp_timer_stop(beep_timer);
 }
 
-bool port_audio_is_busy(void)
-{
-    return beeping;
-}
+bool port_audio_is_busy(void) { return beeping; }
