@@ -9,12 +9,16 @@
 #include "hal_input.h"
 #include "hal_audio.h"
 #include "hal_timer.h"
+#include "tilemap.h"
+#include "font.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define MAX_SPRITES 64
+#define MAX_TILEMAPS 8
+#define SPRITE_COLORKEY 0x04
 
 /* --- sprite flip flags --- */
 #define SPRITE_FLIP_H  1
@@ -50,6 +54,8 @@ typedef struct {
     int           target_fps;
 
     sprite_t      sprites[MAX_SPRITES];
+    tilemap_t     tilemaps[MAX_TILEMAPS];
+    font_t        fonts[MAX_FONTS];
 
     uint8_t       keystate[KEY_COUNT];
     uint8_t       key_prev[KEY_COUNT];
@@ -66,6 +72,8 @@ typedef struct {
 } gamelib_hal_t;
 
 extern gamelib_hal_t g_hal;
+extern tilemap_t *g_tilemaps;
+extern font_t    *g_fonts;
 
 /* --- lifecycle --- */
 int    gamelib_init(gamelib_t *g, int w, int h, int target_fps);
@@ -124,6 +132,20 @@ int  gamelib_sprite_width(gamelib_t *g, int id);
 int  gamelib_sprite_height(gamelib_t *g, int id);
 void gamelib_sprite_set_color_key(gamelib_t *g, int id, gamelib_color_t c);
 
+/* --- tilemap --- */
+int  gamelib_tilemap_create(gamelib_t *g, int cols, int rows, int tile_size, int tileset_id);
+void gamelib_tilemap_clear(gamelib_t *g, int map_id, int tile_id);
+void gamelib_tilemap_set_tile(gamelib_t *g, int map_id, int col, int row, int tile_id);
+void gamelib_tilemap_fill_rect(gamelib_t *g, int map_id, int col, int row, int w, int h, int tile_id);
+int  gamelib_tilemap_get_cols(gamelib_t *g, int map_id);
+int  gamelib_tilemap_get_rows(gamelib_t *g, int map_id);
+int  gamelib_tilemap_get_tile_size(gamelib_t *g, int map_id);
+void gamelib_tilemap_draw(gamelib_t *g, int map_id, int offset_x, int offset_y);
+int  gamelib_tilemap_world_to_col(gamelib_t *g, int map_id, int world_x);
+int  gamelib_tilemap_world_to_row(gamelib_t *g, int map_id, int world_y);
+int  gamelib_tilemap_get_at_pixel(gamelib_t *g, int map_id, int world_x, int world_y);
+void gamelib_tilemap_free(gamelib_t *g, int map_id);
+
 /* --- input --- */
 bool gamelib_is_key_down(gamelib_t *g, int key);
 bool gamelib_is_key_pressed(gamelib_t *g, int key);
@@ -149,11 +171,22 @@ int  gamelib_play_music(gamelib_t *g, const uint8_t *wav_data);
 void gamelib_stop_music(gamelib_t *g);
 bool gamelib_is_music_playing(gamelib_t *g);
 
+/* --- font --- */
+int  gamelib_font_load(gamelib_t *g, const uint8_t *ttf_data, int font_size);
+void gamelib_font_free(gamelib_t *g, int font_id);
+void gamelib_draw_text_font(gamelib_t *g, int x, int y, const char *s, gamelib_color_t c, int font_id);
+void gamelib_draw_printf_font(gamelib_t *g, int x, int y, gamelib_color_t c, int font_id, const char *fmt, ...);
+int  gamelib_get_text_width_font(gamelib_t *g, const char *s, int font_id);
+
 /* --- helpers --- */
 int  gamelib_random(int minVal, int maxVal);
 bool gamelib_rect_overlap(int x1,int y1,int w1,int h1, int x2,int y2,int w2,int h2);
 bool gamelib_point_in_rect(int px,int py, int x,int y,int w,int h);
 float gamelib_distance_f(int x1,int y1, int x2,int y2);
+
+/* --- grid --- */
+void gamelib_draw_grid(gamelib_t *g, int ox, int oy, int rows, int cols, int cell_size, gamelib_color_t c);
+void gamelib_fill_cell(gamelib_t *g, int ox, int oy, int row, int col, int cell_size, gamelib_color_t c);
 
 #ifdef __cplusplus
 }

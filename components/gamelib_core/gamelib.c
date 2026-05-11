@@ -6,6 +6,8 @@
 #include <stdarg.h>
 
 gamelib_hal_t g_hal;
+tilemap_t *g_tilemaps = NULL;
+font_t    *g_fonts = NULL;
 
 int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
 {
@@ -37,6 +39,9 @@ int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
     if (g_hal.timer.init)  g_hal.timer.init();
     if (g_hal.audio.init)  g_hal.audio.init();
 
+    g_tilemaps = (tilemap_t*)calloc(MAX_TILEMAPS, sizeof(tilemap_t));
+    g_fonts = (font_t*)calloc(MAX_FONTS, sizeof(font_t));
+
     g->frame_start = (double)g_hal.timer.micros() / 1000000.0;
     g->start_time  = g->frame_start;
     g->running = true;
@@ -45,6 +50,28 @@ int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
 
 void gamelib_deinit(gamelib_t *g)
 {
+    if (g_tilemaps) {
+        for (int i = 0; i < MAX_TILEMAPS; i++) {
+            if (g_tilemaps[i].used) {
+                free(g_tilemaps[i].tiles);
+                g_tilemaps[i].tiles = NULL;
+            }
+        }
+        free(g_tilemaps);
+        g_tilemaps = NULL;
+    }
+    if (g_fonts) {
+        for (int i = 0; i < MAX_FONTS; i++) {
+            if (g_fonts[i].used) {
+                for (int j = 0; j < 256; j++) {
+                    free(g_fonts[i].glyph_cache[j]);
+                    g_fonts[i].glyph_cache[j] = NULL;
+                }
+            }
+        }
+        free(g_fonts);
+        g_fonts = NULL;
+    }
     if (g_hal.display.deinit) g_hal.display.deinit();
     if (g_hal.audio.deinit)   g_hal.audio.deinit();
     for (int i = 0; i < MAX_SPRITES; i++) {
@@ -179,4 +206,18 @@ float gamelib_distance_f(int x1,int y1, int x2,int y2)
     float dx = (float)(x2 - x1);
     float dy = (float)(y2 - y1);
     return sqrtf(dx * dx + dy * dy);
+}
+
+/* --- grid --- */
+void gamelib_draw_grid(gamelib_t *g, int ox, int oy, int rows, int cols, int cell_size, gamelib_color_t c)
+{
+    for (int i = 0; i <= cols; i++)
+        gamelib_draw_line(g, ox + i * cell_size, oy, ox + i * cell_size, oy + rows * cell_size, c);
+    for (int i = 0; i <= rows; i++)
+        gamelib_draw_line(g, ox, oy + i * cell_size, ox + cols * cell_size, oy + i * cell_size, c);
+}
+
+void gamelib_fill_cell(gamelib_t *g, int ox, int oy, int row, int col, int cell_size, gamelib_color_t c)
+{
+    gamelib_fill_rect(g, ox + col * cell_size, oy + row * cell_size, cell_size, cell_size, c);
 }

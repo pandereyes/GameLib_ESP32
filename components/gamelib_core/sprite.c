@@ -100,7 +100,7 @@ void gamelib_draw_sprite_ex(gamelib_t *g, int id, int dst_x, int dst_y, int flag
             int src_x = (flags & SPRITE_FLIP_H) ? (sw - 1 - col) : col;
             int src_y = (flags & SPRITE_FLIP_V) ? (sh - 1 - row) : row;
             gamelib_color_t c = sp->pixels[src_y * sw + src_x];
-            if (sp->has_color_key && c == sp->color_key) continue;
+            if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
             int px = dst_x + col;
             int py = dst_y + row;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
@@ -157,7 +157,7 @@ void gamelib_draw_sprite_frame_scaled(gamelib_t *g, int id, int dst_x, int dst_y
             int fx = col * fw / dst_w;
             int src_x = src_ox + ((flags & SPRITE_FLIP_H) ? (fw - 1 - fx) : fx);
             gamelib_color_t c = sp->pixels[src_y * sheet_w + src_x];
-            if (sp->has_color_key && c == sp->color_key) continue;
+            if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
             int px = dst_x + col;
             int py = dst_y + row;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
