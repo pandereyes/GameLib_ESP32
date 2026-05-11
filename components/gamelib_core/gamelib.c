@@ -221,3 +221,9 @@ void gamelib_fill_cell(gamelib_t *g, int ox, int oy, int row, int col, int cell_
 {
     gamelib_fill_rect(g, ox + col * cell_size, oy + row * cell_size, cell_size, cell_size, c);
 }
+
+/* --- clip query --- */
+int gamelib_get_clip_x(gamelib_t *g) { return g->fb.clip_x; }
+int gamelib_get_clip_y(gamelib_t *g) { return g->fb.clip_y; }
+int gamelib_get_clip_w(gamelib_t *g) { return g->fb.clip_w; }
+int gamelib_get_clip_h(gamelib_t *g) { return g->fb.clip_h; }

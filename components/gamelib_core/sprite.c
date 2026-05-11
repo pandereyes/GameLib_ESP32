@@ -1,6 +1,7 @@
 #include "gamelib.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 int gamelib_sprite_create(gamelib_t *g, int w, int h)
 {
@@ -160,6 +161,96 @@ void gamelib_draw_sprite_frame_scaled(gamelib_t *g, int id, int dst_x, int dst_y
             if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
             int px = dst_x + col;
             int py = dst_y + row;
+            if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
+                py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
+                fb->pixels[py * fb->width + px] = c;
+            }
+        }
+    }
+}
+
+void gamelib_draw_sprite_rotated(gamelib_t *g, int id, int cx, int cy,
+                                  double angle, int flags)
+{
+    if (id < 0 || id >= MAX_SPRITES || !g->sprites[id].used) return;
+    sprite_t *sp = &g->sprites[id];
+    int sw = sp->width, sh = sp->height;
+    framebuffer_t *fb = &g->fb;
+
+    double rad = angle * 3.141592653589793 / 180.0;
+    double ca = cos(rad), sa = sin(rad);
+
+    double hsw = sw * 0.5, hsh = sh * 0.5;
+    double corners[4][2] = {{-hsw, -hsh}, {hsw, -hsh}, {hsw, hsh}, {-hsw, hsh}};
+    int min_x = 9999, max_x = -9999, min_y = 9999, max_y = -9999;
+    for (int i = 0; i < 4; i++) {
+        double rx = corners[i][0] * ca - corners[i][1] * sa;
+        double ry = corners[i][0] * sa + corners[i][1] * ca;
+        if ((int)rx < min_x) min_x = (int)rx;
+        if ((int)rx > max_x) max_x = (int)rx;
+        if ((int)ry < min_y) min_y = (int)ry;
+        if ((int)ry > max_y) max_y = (int)ry;
+    }
+
+    for (int dy = min_y; dy <= max_y; dy++) {
+        for (int dx = min_x; dx <= max_x; dx++) {
+            double src_x =  dx * ca + dy * sa + hsw;
+            double src_y = -dx * sa + dy * ca + hsh;
+            int sx = (int)src_x, sy = (int)src_y;
+            if (sx < 0 || sx >= sw || sy < 0 || sy >= sh) continue;
+
+            if (flags & SPRITE_FLIP_H) sx = sw - 1 - sx;
+            if (flags & SPRITE_FLIP_V) sy = sh - 1 - sy;
+
+            gamelib_color_t c = sp->pixels[sy * sw + sx];
+            if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
+            int px = cx + dx, py = cy + dy;
+            if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
+                py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
+                fb->pixels[py * fb->width + px] = c;
+            }
+        }
+    }
+}
+
+void gamelib_draw_sprite_frame_rotated(gamelib_t *g, int id, int cx, int cy,
+                                        int fw, int fh, int frame, double angle, int flags)
+{
+    if (id < 0 || id >= MAX_SPRITES || !g->sprites[id].used) return;
+    sprite_t *sp = &g->sprites[id];
+    int sheet_w = sp->width, sheet_h = sp->height;
+    int src_ox = frame * fw;
+    if (src_ox + fw > sheet_w || fh > sheet_h) return;
+    framebuffer_t *fb = &g->fb;
+
+    double rad = angle * 3.141592653589793 / 180.0;
+    double ca = cos(rad), sa = sin(rad);
+
+    double hfw = fw * 0.5, hfh = fh * 0.5;
+    double corners[4][2] = {{-hfw, -hfh}, {hfw, -hfh}, {hfw, hfh}, {-hfw, hfh}};
+    int min_x = 9999, max_x = -9999, min_y = 9999, max_y = -9999;
+    for (int i = 0; i < 4; i++) {
+        double rx = corners[i][0] * ca - corners[i][1] * sa;
+        double ry = corners[i][0] * sa + corners[i][1] * ca;
+        if ((int)rx < min_x) min_x = (int)rx;
+        if ((int)rx > max_x) max_x = (int)rx;
+        if ((int)ry < min_y) min_y = (int)ry;
+        if ((int)ry > max_y) max_y = (int)ry;
+    }
+
+    for (int dy = min_y; dy <= max_y; dy++) {
+        for (int dx = min_x; dx <= max_x; dx++) {
+            double fx =  dx * ca + dy * sa + hfw;
+            double fy = -dx * sa + dy * ca + hfh;
+            int sx = (int)fx, sy = (int)fy;
+            if (sx < 0 || sx >= fw || sy < 0 || sy >= fh) continue;
+
+            if (flags & SPRITE_FLIP_H) sx = fw - 1 - sx;
+            if (flags & SPRITE_FLIP_V) sy = fh - 1 - sy;
+
+            gamelib_color_t c = sp->pixels[sy * sheet_w + (src_ox + sx)];
+            if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
+            int px = cx + dx, py = cy + dy;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
                 fb->pixels[py * fb->width + px] = c;

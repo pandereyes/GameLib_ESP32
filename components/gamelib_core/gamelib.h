@@ -108,6 +108,10 @@ void gamelib_fill_triangle(gamelib_t *g, int x1,int y1,int x2,int y2,
 /* --- clip --- */
 void gamelib_set_clip(gamelib_t *g, int x, int y, int w, int h);
 void gamelib_clear_clip(gamelib_t *g);
+int  gamelib_get_clip_x(gamelib_t *g);
+int  gamelib_get_clip_y(gamelib_t *g);
+int  gamelib_get_clip_w(gamelib_t *g);
+int  gamelib_get_clip_h(gamelib_t *g);
 
 /* --- text --- */
 void gamelib_draw_text(gamelib_t *g, int x, int y, const char *s, gamelib_color_t c);
@@ -129,6 +133,10 @@ void gamelib_draw_sprite_scaled(gamelib_t *g, int id, int x, int y, int dst_w, i
 void gamelib_draw_sprite_frame_scaled(gamelib_t *g, int id, int x, int y,
                                        int fw, int fh, int frame, int dst_w, int dst_h,
                                        int flags);
+void gamelib_draw_sprite_rotated(gamelib_t *g, int id, int x, int y,
+                                  double angle, int flags);
+void gamelib_draw_sprite_frame_rotated(gamelib_t *g, int id, int x, int y,
+                                        int fw, int fh, int frame, double angle, int flags);
 int  gamelib_sprite_width(gamelib_t *g, int id);
 int  gamelib_sprite_height(gamelib_t *g, int id);
 void gamelib_sprite_set_color_key(gamelib_t *g, int id, gamelib_color_t c);
