@@ -11,6 +11,7 @@
 #include "hal_timer.h"
 #include "tilemap.h"
 #include "font.h"
+#include "ui.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -177,6 +178,14 @@ void gamelib_font_free(gamelib_t *g, int font_id);
 void gamelib_draw_text_font(gamelib_t *g, int x, int y, const char *s, gamelib_color_t c, int font_id);
 void gamelib_draw_printf_font(gamelib_t *g, int x, int y, gamelib_color_t c, int font_id, const char *fmt, ...);
 int  gamelib_get_text_width_font(gamelib_t *g, const char *s, int font_id);
+
+/* --- ui controls --- */
+void gamelib_ui_begin(gamelib_t *g);
+void gamelib_ui_end(gamelib_t *g);
+bool gamelib_button(gamelib_t *g, int x, int y, int w, int h, const char *label, gamelib_color_t color);
+bool gamelib_checkbox(gamelib_t *g, int x, int y, const char *label, bool *value);
+bool gamelib_radio_box(gamelib_t *g, int x, int y, const char *label, int *value, int group_value);
+bool gamelib_toggle_button(gamelib_t *g, int x, int y, int w, int h, const char *label, bool *value, gamelib_color_t color);
 
 /* --- helpers --- */
 int  gamelib_random(int minVal, int maxVal);
