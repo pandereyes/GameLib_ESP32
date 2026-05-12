@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"e:/1.work/4.HUAYING/1.project/11.GameLib_MCU/1.source/gamelib_for_esp32/docs/superpowers/specs\")"
+      "Bash(mkdir -p \"e:/1.work/4.HUAYING/1.project/11.GameLib_MCU/1.source/gamelib_for_esp32/docs/superpowers/specs\")",
+      "Bash(idf.py build *)"
     ],
     "additionalDirectories": [
       "e:\\1.work\\4.HUAYING\\1.project\\11.GameLib_MCU\\1.source\\gamelib_for_esp32\\docs\\superpowers"

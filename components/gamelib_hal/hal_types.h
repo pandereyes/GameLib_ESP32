@@ -31,6 +31,7 @@ typedef uint16_t gamelib_color_t;
 #define COLOR_BROWN       0x228A
 #define COLOR_GOLD        0xA0FE
 #define COLOR_DARK_BLUE   0x1100
+#define COLOR_SKY_BLUE    0x7D86
 #define COLOR_DARK_RED    0x0088
 #define COLOR_WHITE     0xFFFF
 /* Compose color from 8-bit RGB channels (byte-swapped for SPI DMA) */
