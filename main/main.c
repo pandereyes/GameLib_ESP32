@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include "gamelib.h"
 
-/* ====== Select active demo (1-15) ====== */
-#define ACTIVE_DEMO 15
+/* ====== Select active demo (1-16) ====== */
+#define ACTIVE_DEMO 16
 
 /* ====== HAL registration ====== */
 void gamelib_port_register_hal(void);
@@ -19,6 +19,7 @@ static void demo_10_tilemap(gamelib_t *g);
 static void demo_12_sprite_xform(gamelib_t *g);
 static void demo_13_clip(gamelib_t *g);
 static void demo_15_ui(gamelib_t *g);
+static void demo_16_fs_test(gamelib_t *g);
 
 /* ====== Demo implementations ====== */
 #include "demos/demo_01_hello.c"
@@ -32,6 +33,7 @@ static void demo_15_ui(gamelib_t *g);
 #include "demos/demo_12_sprite_xform.c"
 #include "demos/demo_13_clip.c"
 #include "demos/demo_15_ui.c"
+#include "demos/demo_16_fs_test.c"
 
 /* ====== App entry ====== */
 static gamelib_t game;
@@ -67,6 +69,8 @@ void app_main(void)
     demo_13_clip(&game);
 #elif ACTIVE_DEMO == 15
     demo_15_ui(&game);
+#elif ACTIVE_DEMO == 16
+    demo_16_fs_test(&game);
 #else
     #error "Invalid ACTIVE_DEMO"
 #endif

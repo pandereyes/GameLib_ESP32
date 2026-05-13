@@ -9,6 +9,7 @@
 #include "hal_input.h"
 #include "hal_audio.h"
 #include "hal_timer.h"
+#include "hal_fs.h"
 #include "tilemap.h"
 #include "font.h"
 #include "ui.h"
@@ -70,6 +71,7 @@ typedef struct {
     hal_input_t   input;
     hal_audio_t   audio;
     hal_timer_t   timer;
+    hal_fs_t      fs;
 } gamelib_hal_t;
 
 extern gamelib_hal_t g_hal;
@@ -204,6 +206,15 @@ float gamelib_distance_f(int x1,int y1, int x2,int y2);
 /* --- grid --- */
 void gamelib_draw_grid(gamelib_t *g, int ox, int oy, int rows, int cols, int cell_size, gamelib_color_t c);
 void gamelib_fill_cell(gamelib_t *g, int ox, int oy, int row, int col, int cell_size, gamelib_color_t c);
+
+/* --- file i/o --- */
+void* gamelib_file_open(gamelib_t *g, const char *path, const char *mode);
+int   gamelib_file_read(gamelib_t *g, void *file, uint8_t *buf, int len);
+int   gamelib_file_write(gamelib_t *g, void *file, const uint8_t *buf, int len);
+int   gamelib_file_seek(gamelib_t *g, void *file, int offset, int whence);
+int   gamelib_file_tell(gamelib_t *g, void *file);
+int   gamelib_file_size(gamelib_t *g, void *file);
+int   gamelib_file_close(gamelib_t *g, void *file);
 
 #ifdef __cplusplus
 }

@@ -31,6 +31,16 @@ uint32_t port_timer_micros(void);
 void port_timer_delay_ms(uint32_t ms);
 void port_timer_sleep_ms(uint32_t ms);
 
+int  port_fs_init(void);
+void port_fs_deinit(void);
+void *port_fs_open(const char *path, const char *mode);
+int  port_fs_read(void *file, uint8_t *buf, int len);
+int  port_fs_write(void *file, const uint8_t *buf, int len);
+int  port_fs_seek(void *file, int offset, int whence);
+int  port_fs_tell(void *file);
+int  port_fs_size(void *file);
+int  port_fs_close(void *file);
+
 void gamelib_port_register_hal(void)
 {
     g_hal.display.width  = PORT_LCD_H_RES;
@@ -64,4 +74,14 @@ void gamelib_port_register_hal(void)
     g_hal.timer.micros   = port_timer_micros;
     g_hal.timer.delay_ms = port_timer_delay_ms;
     g_hal.timer.sleep_ms = port_timer_sleep_ms;
+
+    g_hal.fs.init   = port_fs_init;
+    g_hal.fs.deinit = port_fs_deinit;
+    g_hal.fs.open   = port_fs_open;
+    g_hal.fs.read   = port_fs_read;
+    g_hal.fs.write  = port_fs_write;
+    g_hal.fs.seek   = port_fs_seek;
+    g_hal.fs.tell   = port_fs_tell;
+    g_hal.fs.size   = port_fs_size;
+    g_hal.fs.close  = port_fs_close;
 }

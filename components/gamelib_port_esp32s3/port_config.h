@@ -53,4 +53,12 @@
 #define PORT_I2S_DOUT_PIN  9
 #define PORT_I2S_NUM       I2S_NUM_0
 
+/* === SD Card SPI (shares SPI2 with LCD, CS differs) === */
+#define PORT_SD_SPI_HOST    SPI2_HOST
+#define PORT_SD_PIN_SCLK    39
+#define PORT_SD_PIN_MOSI    38
+#define PORT_SD_PIN_MISO    40
+#define PORT_SD_PIN_CS      41
+#define PORT_SD_SPI_FREQ_HZ (10 * 1000 * 1000)
+
 #endif

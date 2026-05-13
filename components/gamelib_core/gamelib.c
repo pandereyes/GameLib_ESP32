@@ -38,6 +38,7 @@ int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
     if (g_hal.input.init)  g_hal.input.init();
     if (g_hal.timer.init)  g_hal.timer.init();
     if (g_hal.audio.init)  g_hal.audio.init();
+    if (g_hal.fs.init)     g_hal.fs.init();
 
     g_tilemaps = (tilemap_t*)calloc(MAX_TILEMAPS, sizeof(tilemap_t));
     g_fonts = (font_t*)calloc(MAX_FONTS, sizeof(font_t));
@@ -73,6 +74,7 @@ void gamelib_deinit(gamelib_t *g)
         g_fonts = NULL;
     }
     if (g_hal.display.deinit) g_hal.display.deinit();
+    if (g_hal.fs.deinit)      g_hal.fs.deinit();
     if (g_hal.audio.deinit)   g_hal.audio.deinit();
     for (int i = 0; i < MAX_SPRITES; i++) {
         gamelib_sprite_free(g, i);
@@ -227,3 +229,53 @@ int gamelib_get_clip_x(gamelib_t *g) { return g->fb.clip_x; }
 int gamelib_get_clip_y(gamelib_t *g) { return g->fb.clip_y; }
 int gamelib_get_clip_w(gamelib_t *g) { return g->fb.clip_w; }
 int gamelib_get_clip_h(gamelib_t *g) { return g->fb.clip_h; }
+
+/* --- file i/o --- */
+void* gamelib_file_open(gamelib_t *g, const char *path, const char *mode)
+{
+    (void)g;
+    if (!g_hal.fs.open || !path || !mode) return NULL;
+    return g_hal.fs.open(path, mode);
+}
+
+int gamelib_file_read(gamelib_t *g, void *file, uint8_t *buf, int len)
+{
+    (void)g;
+    if (!g_hal.fs.read || !file || !buf || len <= 0) return -1;
+    return g_hal.fs.read(file, buf, len);
+}
+
+int gamelib_file_write(gamelib_t *g, void *file, const uint8_t *buf, int len)
+{
+    (void)g;
+    if (!g_hal.fs.write || !file || !buf || len <= 0) return -1;
+    return g_hal.fs.write(file, buf, len);
+}
+
+int gamelib_file_seek(gamelib_t *g, void *file, int offset, int whence)
+{
+    (void)g;
+    if (!g_hal.fs.seek || !file) return -1;
+    return g_hal.fs.seek(file, offset, whence);
+}
+
+int gamelib_file_tell(gamelib_t *g, void *file)
+{
+    (void)g;
+    if (!g_hal.fs.tell || !file) return -1;
+    return g_hal.fs.tell(file);
+}
+
+int gamelib_file_size(gamelib_t *g, void *file)
+{
+    (void)g;
+    if (!g_hal.fs.size || !file) return -1;
+    return g_hal.fs.size(file);
+}
+
+int gamelib_file_close(gamelib_t *g, void *file)
+{
+    (void)g;
+    if (!g_hal.fs.close || !file) return -1;
+    return g_hal.fs.close(file);
+}
