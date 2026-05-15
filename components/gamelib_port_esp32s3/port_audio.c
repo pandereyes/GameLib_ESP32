@@ -33,11 +33,15 @@ static void beep_timer_cb(void *arg)
 static const uint8_t *pcm_data;
 static int pcm_len;
 static int pcm_pos;
+static int pcm_bits;
+static int pcm_channels;
 static esp_timer_handle_t pcm_timer = NULL;
+static uint32_t pcm_fractional_pos = 0;
+static uint32_t pcm_step = 0;
 
 /* forward declarations */
-static void port_audio_stop_pcm(void);
-static bool port_audio_is_pcm_playing(void);
+void port_audio_stop_pcm(void);
+bool port_audio_is_pcm_playing(void);
 
 static void pcm_timer_cb(void *arg)
 {
@@ -47,30 +51,62 @@ static void pcm_timer_cb(void *arg)
         if (pcm_pos >= pcm_len) pcm_playing = false;
         return;
     }
-    uint8_t sample = pcm_data[pcm_pos++];
-    uint32_t duty = (uint32_t)sample * master_volume / 1000;
+    uint16_t sample = 128; // default middle
+    if (pcm_bits == 8) {
+        sample = pcm_data[pcm_pos];
+    } else if (pcm_bits == 16) {
+        /* PCM 16-bit is signed little-endian, map to 0-255 */
+        if (pcm_pos + 1 < pcm_len) {
+            int16_t s = (int16_t)(pcm_data[pcm_pos] | (pcm_data[pcm_pos + 1] << 8));
+            sample = (uint16_t)((s + 32768) >> 8);
+        }
+    } 
+    
+    /* Advance pcm_pos properly (skipping samples if timer_hz < sample_rate) */
+    pcm_fractional_pos += pcm_step;
+    uint32_t steps = pcm_fractional_pos >> 12;
+    pcm_fractional_pos &= 0xFFF;
+    
+    if (pcm_bits == 8) pcm_pos += steps * pcm_channels;
+    else if (pcm_bits == 16) pcm_pos += steps * pcm_channels * 2;
+    else pcm_pos += steps;
+
+    uint32_t duty = ((uint32_t)sample * 4) * master_volume / 1000;
     ledc_set_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH, duty);
     ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
 }
 
-static int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels)
+int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels)
 {
-    (void)bits; (void)channels;
     port_audio_stop_pcm();
     pcm_data = data;
     pcm_len = len;
     pcm_pos = 0;
+    pcm_bits = bits;
+    pcm_channels = channels;
     pcm_playing = true;
 
+    /* Cap the timer frequency to ~11KHz to save CPU and restore game FPS! */
+    uint32_t timer_hz = sample_rate;
+    if (timer_hz > 11025) timer_hz = 11025;
+    /* Fixed point step size for advancing the PCM data array */
+    pcm_step = (sample_rate << 12) / timer_hz;
+    pcm_fractional_pos = 0;
+
+    /* Set a high carrier frequency for PWM DAC */
+    ledc_set_freq(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_TIMER, 64000);
+
     const esp_timer_create_args_t timer_args = {
-        .callback = pcm_timer_cb, .name = "pcm_timer"
+        .callback = pcm_timer_cb, 
+        .name = "pcm_timer",
+        .skip_unhandled_events = true
     };
     if (!pcm_timer) esp_timer_create(&timer_args, &pcm_timer);
-    esp_timer_start_periodic(pcm_timer, 1000000 / sample_rate);
+    esp_timer_start_periodic(pcm_timer, 1000000 / timer_hz);
     return 0;
 }
 
-static void port_audio_stop_pcm(void)
+void port_audio_stop_pcm(void)
 {
     pcm_playing = false;
     if (pcm_timer) {
@@ -82,16 +118,17 @@ static void port_audio_stop_pcm(void)
     ledc_update_duty(PORT_BUZZER_LEDC_MODE, PORT_BUZZER_LEDC_CH);
 }
 
-static bool port_audio_is_pcm_playing(void) { return pcm_playing; }
+bool port_audio_is_pcm_playing(void) { return pcm_playing; }
 
 /* ============== I2S DAC ============== */
 
 #else
 
 /* forward declarations */
-static void port_audio_stop_pcm(void);
+void port_audio_stop_pcm(void);
+bool port_audio_is_pcm_playing(void);
 
-static int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels)
+int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels)
 {
     port_audio_stop_pcm();
 
@@ -124,9 +161,9 @@ static int port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, in
     return 0;
 }
 
-static void port_audio_stop_pcm(void) { pcm_playing = false; }
+void port_audio_stop_pcm(void) { pcm_playing = false; }
 
-static bool port_audio_is_pcm_playing(void) { return pcm_playing; }
+bool port_audio_is_pcm_playing(void) { return pcm_playing; }
 
 #endif /* PORT_AUDIO_USE_I2S */
 

@@ -11,11 +11,11 @@ int wav_parse(const uint8_t *wav_data, size_t len, wav_info_t *info)
     if (memcmp(wav_data + 8, "WAVE", 4) != 0) return -1;
 
     /* Find fmt and data chunks */
-    int pos = 12;
-    while (pos < (int)len - 8) {
+    size_t pos = 12;
+    while (pos + 8 <= len) {
         char id[5] = {0};
         memcpy(id, wav_data + pos, 4);
-        int chunk_size = wav_data[pos + 4] | (wav_data[pos + 5] << 8) |
+        size_t chunk_size = wav_data[pos + 4] | (wav_data[pos + 5] << 8) |
                          (wav_data[pos + 6] << 16) | (wav_data[pos + 7] << 24);
 
         if (strcmp(id, "fmt ") == 0) {
@@ -30,7 +30,7 @@ int wav_parse(const uint8_t *wav_data, size_t len, wav_info_t *info)
             info->data_len = chunk_size;
             break;
         }
-        pos += 8 + chunk_size;
+        pos += 8 + chunk_size + (chunk_size & 1);
     }
 
     if (!info->data || info->data_len == 0) return -1;

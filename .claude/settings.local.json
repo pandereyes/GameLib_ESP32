@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(mkdir -p \"e:/1.work/4.HUAYING/1.project/11.GameLib_MCU/1.source/gamelib_for_esp32/docs/superpowers/specs\")",
-      "Bash(idf.py build *)"
+      "Bash(idf.py build *)",
+      "Bash(cmd.exe /c \"dir /b D:\\\\ESP-IDF\\\\v5.4.1\\\\esp-idf\\\\export.bat 2>nul && echo EXISTS || echo NOT_FOUND\")"
     ],
     "additionalDirectories": [
       "e:\\1.work\\4.HUAYING\\1.project\\11.GameLib_MCU\\1.source\\gamelib_for_esp32\\docs\\superpowers"

@@ -3,11 +3,40 @@
 #include <string.h>
 #include <math.h>
 
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
+
+#define BLEND_ALPHA(src, dst, a) do { \
+    if ((a) == 0) { /* dst remains unchanged */ } \
+    else if ((a) == 255) { (dst) = (src); } \
+    else { \
+        unsigned u_src = (((src) & 0xFF) << 8) | (((src) >> 8) & 0xFF); \
+        unsigned u_dst = (((dst) & 0xFF) << 8) | (((dst) >> 8) & 0xFF); \
+        unsigned sr = (u_src >> 11) & 0x1F, dr = (u_dst >> 11) & 0x1F; \
+        unsigned sg = (u_src >> 5)  & 0x3F, dg = (u_dst >> 5)  & 0x3F; \
+        unsigned sb = u_src & 0x1F,        db = u_dst & 0x1F; \
+        unsigned ia = (a), ib = 256 - (a); \
+        unsigned or_ = (sr * ia + dr * ib) >> 8; \
+        unsigned og = (sg * ia + dg * ib) >> 8; \
+        unsigned ob = (sb * ia + db * ib) >> 8; \
+        unsigned raw = (or_ << 11) | (og << 5) | ob; \
+        (dst) = (gamelib_color_t)(((raw & 0xFF) << 8) | ((raw >> 8) & 0xFF)); \
+    } \
+} while(0)
+
 int gamelib_sprite_create(gamelib_t *g, int w, int h)
 {
     for (int i = 0; i < MAX_SPRITES; i++) {
         if (!g->sprites[i].used) {
+#ifdef ESP_PLATFORM
+            g->sprites[i].pixels = (gamelib_color_t*)heap_caps_calloc(w * h, sizeof(gamelib_color_t), MALLOC_CAP_SPIRAM);
+            if (!g->sprites[i].pixels) {
+                g->sprites[i].pixels = (gamelib_color_t*)calloc(w * h, sizeof(gamelib_color_t));
+            }
+#else
             g->sprites[i].pixels = (gamelib_color_t*)calloc(w * h, sizeof(gamelib_color_t));
+#endif
             if (!g->sprites[i].pixels) return -1;
             g->sprites[i].width = w;
             g->sprites[i].height = h;
@@ -26,6 +55,10 @@ void gamelib_sprite_free(gamelib_t *g, int id)
     if (g->sprites[id].used) {
         free(g->sprites[id].pixels);
         g->sprites[id].pixels = NULL;
+        if (g->sprites[id].alpha) {
+            free(g->sprites[id].alpha);
+            g->sprites[id].alpha = NULL;
+        }
         g->sprites[id].used = false;
     }
 }
@@ -106,7 +139,13 @@ void gamelib_draw_sprite_ex(gamelib_t *g, int id, int dst_x, int dst_y, int flag
             int py = dst_y + row;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
-                fb->pixels[py * fb->width + px] = c;
+                gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
+                if ((flags & SPRITE_ALPHA) && sp->alpha) {
+                    uint8_t a = sp->alpha[src_y * sw + src_x];
+                    BLEND_ALPHA(c, *dst, a);
+                } else {
+                    *dst = c;
+                }
             }
         }
     }
@@ -131,7 +170,12 @@ void gamelib_draw_sprite_scaled(gamelib_t *g, int id, int dst_x, int dst_y, int 
             int py = dst_y + row;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
-                fb->pixels[py * fb->width + px] = c;
+                gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
+                if (sp->alpha) {
+                    BLEND_ALPHA(c, *dst, sp->alpha[src_y * sw + src_x]);
+                } else {
+                    *dst = c;
+                }
             }
         }
     }
@@ -163,7 +207,13 @@ void gamelib_draw_sprite_frame_scaled(gamelib_t *g, int id, int dst_x, int dst_y
             int py = dst_y + row;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
-                fb->pixels[py * fb->width + px] = c;
+                gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
+                if ((flags & SPRITE_ALPHA) && sp->alpha) {
+                    uint8_t a = sp->alpha[src_y * sheet_w + src_x];
+                    BLEND_ALPHA(c, *dst, a);
+                } else {
+                    *dst = c;
+                }
             }
         }
     }
@@ -207,7 +257,13 @@ void gamelib_draw_sprite_rotated(gamelib_t *g, int id, int cx, int cy,
             int px = cx + dx, py = cy + dy;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
-                fb->pixels[py * fb->width + px] = c;
+                gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
+                if ((flags & SPRITE_ALPHA) && sp->alpha) {
+                    uint8_t a = sp->alpha[sy * sw + sx];
+                    BLEND_ALPHA(c, *dst, a);
+                } else {
+                    *dst = c;
+                }
             }
         }
     }
@@ -253,7 +309,13 @@ void gamelib_draw_sprite_frame_rotated(gamelib_t *g, int id, int cx, int cy,
             int px = cx + dx, py = cy + dy;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
-                fb->pixels[py * fb->width + px] = c;
+                gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
+                if ((flags & SPRITE_ALPHA) && sp->alpha) {
+                    uint8_t a = sp->alpha[sy * sheet_w + (src_ox + sx)];
+                    BLEND_ALPHA(c, *dst, a);
+                } else {
+                    *dst = c;
+                }
             }
         }
     }

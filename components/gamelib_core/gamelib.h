@@ -21,6 +21,7 @@ extern "C" {
 #define MAX_SPRITES 64
 #define MAX_TILEMAPS 8
 #define SPRITE_COLORKEY 0x04
+#define SPRITE_ALPHA    0x08
 
 /* --- sprite flip flags --- */
 #define SPRITE_FLIP_H  1
@@ -34,6 +35,7 @@ typedef struct {
     bool used;
     gamelib_color_t color_key;
     bool has_color_key;
+    uint8_t *alpha;
 } sprite_t;
 
 /* --- framebuffer --- */
@@ -125,6 +127,7 @@ void gamelib_draw_printf(gamelib_t *g, int x, int y, gamelib_color_t c, const ch
 /* --- sprite --- */
 int  gamelib_sprite_create(gamelib_t *g, int w, int h);
 int  gamelib_sprite_load_bmp(gamelib_t *g, const uint8_t *data, size_t len);
+int  gamelib_sprite_load_png(gamelib_t *g, const uint8_t *data, size_t len);
 void gamelib_sprite_free(gamelib_t *g, int id);
 void gamelib_sprite_set_pixel(gamelib_t *g, int id, int x, int y, gamelib_color_t c);
 void gamelib_draw_sprite(gamelib_t *g, int id, int x, int y);

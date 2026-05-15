@@ -71,6 +71,10 @@ int gamelib_play_wav(gamelib_t *g, const uint8_t *wav_data, int channel, int vol
     ch->volume = (volume > 0 && volume <= 1000) ? volume : 1000;
     ch->loop = false;
 
+    if (g_hal.audio.play_pcm) {
+        g_hal.audio.play_pcm(ch->wav.data, ch->wav.data_len, ch->wav.sample_rate, ch->wav.bits_per_sample, ch->wav.num_channels);
+    }
+
     return channel;
 }
 
@@ -137,6 +141,11 @@ int gamelib_play_music(gamelib_t *g, const uint8_t *wav_data)
     c->music.pos = 0;
     c->music.volume = 1000;
     c->music.loop = true;
+    
+    if (g_hal.audio.play_pcm) {
+        g_hal.audio.play_pcm(c->music.wav.data, c->music.wav.data_len, c->music.wav.sample_rate, c->music.wav.bits_per_sample, c->music.wav.num_channels);
+    }
+    
     return 0;
 }
 

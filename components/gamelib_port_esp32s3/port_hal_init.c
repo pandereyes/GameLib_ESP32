@@ -24,6 +24,9 @@ void port_audio_deinit(void);
 void port_audio_beep(int freq_hz, int duration_ms);
 void port_audio_stop(void);
 bool port_audio_is_busy(void);
+int  port_audio_play_pcm(const uint8_t *data, int len, int sample_rate, int bits, int channels);
+void port_audio_stop_pcm(void);
+bool port_audio_is_pcm_playing(void);
 
 void port_timer_init(void);
 uint32_t port_timer_millis(void);
@@ -68,6 +71,9 @@ void gamelib_port_register_hal(void)
     g_hal.audio.beep   = port_audio_beep;
     g_hal.audio.stop   = port_audio_stop;
     g_hal.audio.is_busy = port_audio_is_busy;
+    g_hal.audio.play_pcm = port_audio_play_pcm;
+    g_hal.audio.stop_pcm = port_audio_stop_pcm;
+    g_hal.audio.is_pcm_playing = port_audio_is_pcm_playing;
 
     g_hal.timer.init     = port_timer_init;
     g_hal.timer.millis   = port_timer_millis;

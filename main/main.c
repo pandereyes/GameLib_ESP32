@@ -2,7 +2,7 @@
 #include "gamelib.h"
 
 /* ====== Select active demo (1-16) ====== */
-#define ACTIVE_DEMO 16
+#define ACTIVE_DEMO 14
 
 /* ====== HAL registration ====== */
 void gamelib_port_register_hal(void);
@@ -18,6 +18,7 @@ static void demo_09_snake(gamelib_t *g);
 static void demo_10_tilemap(gamelib_t *g);
 static void demo_12_sprite_xform(gamelib_t *g);
 static void demo_13_clip(gamelib_t *g);
+static void demo_14_space_shooter(gamelib_t *g);
 static void demo_15_ui(gamelib_t *g);
 static void demo_16_fs_test(gamelib_t *g);
 
@@ -32,6 +33,7 @@ static void demo_16_fs_test(gamelib_t *g);
 #include "demos/demo_10_tilemap.c"
 #include "demos/demo_12_sprite_xform.c"
 #include "demos/demo_13_clip.c"
+#include "demos/demo_14_space_shooter.c"
 #include "demos/demo_15_ui.c"
 #include "demos/demo_16_fs_test.c"
 
@@ -67,6 +69,8 @@ void app_main(void)
     demo_12_sprite_xform(&game);
 #elif ACTIVE_DEMO == 13
     demo_13_clip(&game);
+#elif ACTIVE_DEMO == 14
+    demo_14_space_shooter(&game);
 #elif ACTIVE_DEMO == 15
     demo_15_ui(&game);
 #elif ACTIVE_DEMO == 16
