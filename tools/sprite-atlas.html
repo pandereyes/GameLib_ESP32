@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>精灵表区域标注工具</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; min-height: 100vh; }
+h1 { text-align: center; margin-bottom: 16px; font-size: 1.4em; color: #e94560; }
+
+.panel { max-width: 1200px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+.sidebar { flex: 0 0 320px; display: flex; flex-direction: column; gap: 10px; }
+.main { flex: 1; min-width: 400px; }
+
+.canvas-wrap { background: #16213e; border: 2px dashed #333; border-radius: 8px; position: relative; overflow: auto; max-height: 80vh; display: inline-block; }
+.canvas-wrap.drag-over { border-color: #e94560; }
+canvas { image-rendering: pixelated; display: block; cursor: none; }
+
+input[type=file] { display: none; }
+input[type=text], input[type=number] { background: #16213e; border: 1px solid #333; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; }
+input[type=text] { width: 100%; }
+input[type=number] { width: 64px; text-align: center; }
+.btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85em; font-weight: 600; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #e94560; color: #fff; }
+.btn-secondary { background: #0f3460; color: #ccc; }
+.btn-export { background: #16c79a; color: #000; }
+.btn-del { background: #c0392b; color: #fff; padding: 2px 8px; font-size: 0.7em; border: none; border-radius: 3px; cursor: pointer; }
+.btn-nudge { background: #333; color: #fff; padding: 2px 6px; font-size: 0.7em; border: none; border-radius: 3px; cursor: pointer; }
+
+.actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.box-size-row { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: #ccc; }
+.box-size-row span { color: #999; }
+.region-list { max-height: 400px; overflow-y: auto; }
+.region-item { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: #16213e; border-radius: 4px; margin-bottom: 3px; border-left: 3px solid #e94560; font-size: 0.82em; }
+.region-item .idx { color: #e94560; font-weight: 600; min-width: 18px; }
+.region-item .info { flex: 1; min-width: 0; color: #999; font-size: 0.78em; }
+.region-item input { width: 100px; flex-shrink: 0; }
+.region-item:hover { background: #1a1a3e; }
+
+.export-panel { display: none; margin-top: 8px; }
+.export-panel textarea { width: 100%; height: 200px; background: #0d1117; color: #58a6ff; border: 1px solid #333; border-radius: 6px; padding: 10px; font-family: 'Consolas','Courier New',monospace; font-size: 0.8em; resize: vertical; }
+.export-panel .btn-copy { margin-top: 6px; background: #1f6feb; color: #fff; }
+
+.help { font-size: 0.78em; color: #666; }
+.status { font-size: 0.8em; color: #999; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<h1>精灵表区域标注工具</h1>
+
+<div class="panel">
+  <div class="sidebar">
+    <p class="help">拖拽或选择 PNG，设置框大小，移动鼠标点击放置。<br>已放置区域可方向键微调。</p>
+
+    <div class="box-size-row">
+      框宽 <input type="number" id="boxW" value="48" min="1" onchange="redraw()">
+      框高 <input type="number" id="boxH" value="48" min="1" onchange="redraw()">
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="document.getElementById('file').click()">选择文件</button>
+      <button class="btn btn-primary" onclick="undoRegion()">撤销</button>
+      <button class="btn btn-del" onclick="clearRegions()">清空</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-export" onclick="exportHeader()">导出 C 头文件</button>
+    </div>
+
+    <p class="status" id="status">未加载图片</p>
+    <p class="help">单击放置矩形，右键/退格删除上一个。<br>选中区域用 ↑↓←→ 逐像素微调。<br>滚轮缩放框尺寸。</p>
+
+    <div class="region-list" id="regionList"><div class="help" style="padding:8px;">放置后在此显示区域列表</div></div>
+
+    <div class="export-panel" id="exportPanel">
+      <p style="font-size:0.8em;color:#999;">复制到 C 代码中使用</p>
+      <textarea id="exportText" readonly></textarea>
+      <button class="btn btn-copy" onclick="copyExport()">复制到剪贴板</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="canvas-wrap" id="canvasWrap">
+      <input type="file" id="file" accept="image/png">
+      <canvas id="c"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+const boxW = document.getElementById('boxW');
+const boxH = document.getElementById('boxH');
+
+let atlasImage = null;
+let regions = [];
+let nextId = 1;
+let mouseX = -999, mouseY = -999;
+let selectedIdx = -1;   // which region is selected (for nudge)
+
+/* ---- File load ---- */
+document.getElementById('file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => { atlasImage = img; regions = []; nextId = 1; selectedIdx = -1; redraw(); };
+  img.src = URL.createObjectURL(f);
+});
+
+['dragover','dragleave','drop'].forEach(ev => wrap.addEventListener(ev, e => e.preventDefault()));
+wrap.addEventListener('dragover', () => wrap.classList.add('drag-over'));
+wrap.addEventListener('dragleave', () => wrap.classList.remove('drag-over'));
+wrap.addEventListener('drop', e => {
+  wrap.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (!f || !f.type.startsWith('image/png')) return;
+  const img = new Image();
+  img.onload = () => { atlasImage = img; regions = []; nextId = 1; selectedIdx = -1; redraw(); };
+  img.src = URL.createObjectURL(f);
+});
+
+/* ---- Mouse: track position, click to place ---- */
+canvas.addEventListener('mousemove', e => {
+  if (!atlasImage) return;
+  const r = canvas.getBoundingClientRect();
+  mouseX = Math.round((e.clientX - r.left) * atlasImage.width / r.width);
+  mouseY = Math.round((e.clientY - r.top) * atlasImage.height / r.height);
+  redraw();
+  drawGhost();
+});
+
+canvas.addEventListener('mouseleave', () => { mouseX = -999; mouseY = -999; redraw(); });
+
+canvas.addEventListener('click', e => {
+  if (!atlasImage) return;
+  const r = canvas.getBoundingClientRect();
+  const cx = Math.round((e.clientX - r.left) * atlasImage.width / r.width);
+  const cy = Math.round((e.clientY - r.top) * atlasImage.height / r.height);
+  const bw = +boxW.value, bh = +boxH.value;
+  const x = Math.max(0, cx - Math.floor(bw / 2));
+  const y = Math.max(0, cy - Math.floor(bh / 2));
+  const w = Math.min(bw, atlasImage.width - x);
+  const h = Math.min(bh, atlasImage.height - y);
+
+  const name = `sprite_${String(nextId).padStart(2,'0')}`;
+  regions.push({ name, x, y, w, h });
+  nextId++; selectedIdx = regions.length - 1;
+  redraw(); buildRegionList();
+  document.getElementById('status').textContent =
+    `已标注 ${regions.length} 个区域 ↑↓←→ 微调`;
+});
+
+/* Right-click or Backspace to delete last */
+canvas.addEventListener('contextmenu', e => { e.preventDefault(); undoRegion(); });
+document.addEventListener('keydown', e => {
+  if (!atlasImage) return;
+  if (e.key === 'Backspace') { undoRegion(); return; }
+
+  /* Arrow keys nudge selected region */
+  if (selectedIdx < 0 || selectedIdx >= regions.length) return;
+  const rgn = regions[selectedIdx];
+  const step = e.shiftKey ? 10 : 1;
+  switch (e.key) {
+    case 'ArrowLeft':  rgn.x = Math.max(0, rgn.x - step); break;
+    case 'ArrowRight': rgn.x = Math.min(atlasImage.width - rgn.w, rgn.x + step); break;
+    case 'ArrowUp':    rgn.y = Math.max(0, rgn.y - step); break;
+    case 'ArrowDown':  rgn.y = Math.min(atlasImage.height - rgn.h, rgn.y + step); break;
+    default: return;
+  }
+  e.preventDefault();
+  redraw(); buildRegionList();
+  document.getElementById('status').textContent =
+    `${rgn.name}: x=${rgn.x} y=${rgn.y} ${rgn.w}×${rgn.h}`;
+});
+
+/* Scroll wheel resizes box */
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.deltaY < 0) { boxW.value = +boxW.value + 1; boxH.value = +boxH.value + 1; }
+  else { boxW.value = Math.max(1, +boxW.value - 1); boxH.value = Math.max(1, +boxH.value - 1); }
+  redraw();
+});
+
+function drawGhost() {
+  const bw = +boxW.value, bh = +boxH.value;
+  if (bw <= 0 || bh <= 0) return;
+  const x = Math.max(0, mouseX - Math.floor(bw / 2));
+  const y = Math.max(0, mouseY - Math.floor(bh / 2));
+  const w = Math.min(bw, atlasImage.width - x);
+  const h = Math.min(bh, atlasImage.height - y);
+  ctx.strokeStyle = '#16c79a'; ctx.lineWidth = 1;
+  ctx.setLineDash([4, 2]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(22,199,154,0.08)';
+  ctx.fillRect(x, y, w, h);
+}
+
+/* ---- Redraw ---- */
+function redraw() {
+  if (!atlasImage) return;
+  canvas.width = atlasImage.width;
+  canvas.height = atlasImage.height;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(atlasImage, 0, 0);
+
+  regions.forEach((r, i) => {
+    const sel = (i === selectedIdx);
+    ctx.strokeStyle = sel ? '#ff0' : '#e94560';
+    ctx.lineWidth = sel ? 2 : 1;
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = sel ? 'rgba(255,255,0,0.15)' : 'rgba(233,69,96,0.08)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#e94560'; ctx.font = '10px monospace';
+    ctx.fillText(`${r.name} ${r.w}×${r.h}`, r.x + 2, r.y - 2);
+  });
+}
+
+/* ---- Region list ---- */
+function buildRegionList() {
+  const list = document.getElementById('regionList');
+  list.innerHTML = '';
+  regions.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'region-item';
+    div.style.borderLeftColor = (i === selectedIdx) ? '#ff0' : '#e94560';
+    div.innerHTML = `
+      <span class="idx" style="cursor:pointer;" title="选中以方向键微调">${i}</span>
+      <input type="text" value="${r.name}" data-idx="${i}" class="name-input" style="width:110px;">
+      <span class="info">x:${r.x} y:${r.y} ${r.w}×${r.h}</span>
+      <button class="btn-nudge" data-idx="${i}" data-dir="prev">▲</button>
+      <button class="btn-nudge" data-idx="${i}" data-dir="next">▼</button>
+      <button class="btn-del" data-idx="${i}">×</button>`;
+
+    div.querySelector('.idx').addEventListener('click', () => {
+      selectedIdx = i; redraw(); buildRegionList();
+    });
+    div.querySelector('.name-input').addEventListener('change', function() {
+      regions[+this.dataset.idx].name = this.value || ('sprite_' + (+this.dataset.idx+1));
+      redraw();
+    });
+    div.querySelector('[data-dir=prev]').addEventListener('click', () => {
+      if (i > 0) { [regions[i], regions[i-1]] = [regions[i-1], regions[i]]; if (selectedIdx===i) selectedIdx--; else if (selectedIdx===i-1) selectedIdx++; redraw(); buildRegionList(); }
+    });
+    div.querySelector('[data-dir=next]').addEventListener('click', () => {
+      if (i < regions.length-1) { [regions[i], regions[i+1]] = [regions[i+1], regions[i]]; if (selectedIdx===i) selectedIdx++; else if (selectedIdx===i+1) selectedIdx--; redraw(); buildRegionList(); }
+    });
+    div.querySelector('.btn-del').addEventListener('click', () => {
+      regions.splice(i, 1);
+      if (selectedIdx === i) selectedIdx = -1;
+      else if (selectedIdx > i) selectedIdx--;
+      redraw(); buildRegionList();
+    });
+    list.appendChild(div);
+  });
+}
+
+function undoRegion() {
+  if (regions.length === 0) return;
+  regions.pop();
+  if (selectedIdx >= regions.length) selectedIdx = regions.length - 1;
+  redraw(); buildRegionList();
+  document.getElementById('status').textContent = `已撤销，剩余 ${regions.length} 个区域`;
+}
+
+function clearRegions() {
+  regions = []; nextId = 1; selectedIdx = -1;
+  redraw(); buildRegionList();
+  document.getElementById('status').textContent = '已清空';
+}
+
+function exportHeader() {
+  if (regions.length === 0) { alert('没有标注区域'); return; }
+  let out = '/* Auto-generated sprite atlas offsets */\n';
+  out += '/* Total regions: ' + regions.length + ' */\n\n';
+  regions.forEach(r => {
+    const macro = r.name.toUpperCase();
+    out += `#define ${macro}_X  ${r.x}\n`;
+    out += `#define ${macro}_Y  ${r.y}\n`;
+    out += `#define ${macro}_W  ${r.w}\n`;
+    out += `#define ${macro}_H  ${r.h}\n`;
+    out += `#define ${macro}    ${r.x}, ${r.y}, ${r.w}, ${r.h}\n\n`;
+  });
+
+  out += '/* Usage:\n';
+  out += ' *   gamelib_draw_sprite_region(g, spr_atlas,\n';
+  out += ' *       screen_x, screen_y,\n';
+  out += ' *       SPRITE_NAME_X, SPRITE_NAME_Y, SPRITE_NAME_W, SPRITE_NAME_H);\n';
+  out += ' *   // Or: gamelib_draw_sprite_region(g, spr_atlas, sx, sy, SPRITE_NAME);\n';
+  out += ' */\n';
+
+  document.getElementById('exportText').value = out;
+  document.getElementById('exportPanel').style.display = 'block';
+}
+
+function copyExport() {
+  const ta = document.getElementById('exportText');
+  ta.select(); document.execCommand('copy');
+  document.getElementById('status').textContent = '已复制到剪贴板';
+}
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 #include "gamelib.h"
 
 /* ====== Select active demo (1-16) ====== */
-#define ACTIVE_DEMO 14
+#define ACTIVE_DEMO 17
 
 /* ====== HAL registration ====== */
 void gamelib_port_register_hal(void);
@@ -21,6 +21,7 @@ static void demo_13_clip(gamelib_t *g);
 static void demo_14_space_shooter(gamelib_t *g);
 static void demo_15_ui(gamelib_t *g);
 static void demo_16_fs_test(gamelib_t *g);
+static void demo_17_rpg_demo(gamelib_t *g);
 
 /* ====== Demo implementations ====== */
 #include "demos/demo_01_hello.c"
@@ -36,6 +37,7 @@ static void demo_16_fs_test(gamelib_t *g);
 #include "demos/demo_14_space_shooter.c"
 #include "demos/demo_15_ui.c"
 #include "demos/demo_16_fs_test.c"
+#include "demos/demo_17_rpg_demo.c"
 
 /* ====== App entry ====== */
 static gamelib_t game;
@@ -75,6 +77,8 @@ void app_main(void)
     demo_15_ui(&game);
 #elif ACTIVE_DEMO == 16
     demo_16_fs_test(&game);
+#elif ACTIVE_DEMO == 17
+    demo_17_rpg_demo(&game);
 #else
     #error "Invalid ACTIVE_DEMO"
 #endif

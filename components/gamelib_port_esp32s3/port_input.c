@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* 配置是否将 IMU 倾斜映射为方向键 (1:是, 0:否) */
+#define PORT_MAP_IMU_TO_KEYS 0
+
 static const char *TAG = "port_input";
 
 static struct {
@@ -49,6 +52,7 @@ void port_input_poll(void)
         key_state[key_map[i].key] = key_map[i].active_low ? (level == 0) : (level == 1);
     }
 
+#if PORT_MAP_IMU_TO_KEYS
     /* QMI8658 tilt mapping — axes swapped for landscape display */
     qmi8658_data_t data;
     bsp_qmi8658_read_data(&data);
@@ -62,6 +66,11 @@ void port_input_poll(void)
     key_state[KEY_RIGHT] |= tilt_right;
     key_state[KEY_UP]    |= tilt_up;
     key_state[KEY_DOWN]  |= tilt_down;
+#else
+    /* Even if not mapping keys, we might need IMU for mouse. */
+    qmi8658_data_t data;
+    bsp_qmi8658_read_data(&data);
+#endif
 
     /* map tilt to mouse coords (landscape 320x240) */
     mouse_x = 160 + (data.acc_y * 160) / 16000;

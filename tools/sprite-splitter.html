@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>精灵表拆分工具</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; min-height: 100vh; }
+h1 { text-align: center; margin-bottom: 16px; font-size: 1.4em; color: #e94560; }
+
+.panel { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+.controls { flex: 0 0 300px; display: flex; flex-direction: column; gap: 10px; }
+.canvas-wrap { flex: 1; min-width: 300px; background: #16213e; border: 2px dashed #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; min-height: 300px; overflow: auto; position: relative; }
+.canvas-wrap.drag-over { border-color: #e94560; }
+canvas { image-rendering: pixelated; display: block; }
+
+label { font-size: 0.85em; color: #999; display: flex; justify-content: space-between; align-items: center; }
+label span { flex-shrink: 0; }
+input[type=number] { width: 64px; background: #16213e; border: 1px solid #333; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; text-align: center; }
+input[type=file] { display: none; }
+.btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 600; transition: opacity 0.2s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #e94560; color: #fff; }
+.btn-secondary { background: #0f3460; color: #ccc; }
+.btn-all { background: #16c79a; color: #000; }
+
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.row-list { max-height: 260px; overflow-y: auto; }
+.row-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: #16213e; border-radius: 4px; margin-bottom: 4px; border-left: 3px solid #533483; gap: 6px; }
+.row-item .name { font-size: 0.8em; flex: 1; min-width: 0; }
+.row-item .trim-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.row-item .trim-group button { width: 22px; height: 22px; padding: 0; font-size: 0.75em; line-height: 1; border-radius: 3px; border: none; cursor: pointer; background: #333; color: #fff; }
+.row-item .trim-group button:hover { background: #555; }
+.row-item .trim-group .trim-num { font-size: 0.85em; min-width: 20px; text-align: center; color: #fff; font-weight: 600; }
+.row-item .btn-dl { background: #533483; color: #fff; padding: 4px 10px; font-size: 0.75em; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.row-item .btn-dl:hover { background: #6a44a0; }
+.row-item:hover { background: #1a1a3e; }
+.check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85em; color: #ccc; }
+.help { font-size: 0.78em; color: #666; text-align: center; }
+</style>
+</head>
+<body>
+<h1>精灵表拆分工具 — 网格 → 水平条带</h1>
+
+<div class="panel">
+  <div class="controls">
+    <p style="font-size:0.85em;color:#777;">拖拽或点击下方区域上传 PNG</p>
+
+    <label>每帧宽度 <input type="number" id="fw" value="48" min="1"></label>
+    <label>每帧高度 <input type="number" id="fh" value="48" min="1"></label>
+    <label>行数(动作) <input type="number" id="rows" value="10" min="1"></label>
+    <label>列数(帧数) <input type="number" id="cols" value="8" min="1"></label>
+
+    <label class="check-row">
+      <input type="checkbox" id="autoTrim" checked onchange="reloadGrid()">
+      自动检测尾部空白帧 (填充率&lt;2%)
+    </label>
+
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="document.getElementById('file').click()">选择文件</button>
+      <button class="btn btn-primary" onclick="reloadGrid()">刷新</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-all" onclick="downloadAll()">下载全部行</button>
+    </div>
+
+    <div class="row-list" id="rowList"><div class="help">上传图片后每行可手动调整帧数</div></div>
+    <p class="help">每行独立裁剪尾部空白帧。<br>自动检测用填充面积比判断，也可手动 ± 微调。<br>背景色取自 PNG 左上角像素。</p>
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <input type="file" id="file" accept="image/png">
+    <canvas id="c" width="100" height="100"></canvas>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('file');
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+
+let originalImage = null;
+const keepFrames = [];       // per-row frame count (user adjustable)
+let srcImageData = null;     // cached RGBA source
+let bgR = 0, bgG = 0, bgB = 0;
+
+fileInput.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => { originalImage = img; loadSource(); reloadGrid(); };
+  img.src = URL.createObjectURL(f);
+});
+
+['dragover','dragleave','drop'].forEach(ev => wrap.addEventListener(ev, e => e.preventDefault()));
+wrap.addEventListener('dragover', () => wrap.classList.add('drag-over'));
+wrap.addEventListener('dragleave', () => wrap.classList.remove('drag-over'));
+wrap.addEventListener('drop', e => {
+  wrap.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (!f || !f.type.startsWith('image/png')) return;
+  const img = new Image();
+  img.onload = () => { originalImage = img; loadSource(); reloadGrid(); };
+  img.src = URL.createObjectURL(f);
+});
+
+function p() { return { fw: +fw.value, fh: +fh.value, rows: +rows.value, cols: +cols.value }; }
+
+function loadSource() {
+  const { fw, fh, rows, cols } = p();
+  const sw = cols * fw, sh = rows * fh;
+  const tmp = document.createElement('canvas');
+  tmp.width = sw; tmp.height = sh;
+  const tc = tmp.getContext('2d');
+  tc.drawImage(originalImage, 0, 0, sw, sh);
+  srcImageData = tc.getImageData(0, 0, sw, sh).data;
+  bgR = srcImageData[0]; bgG = srcImageData[1]; bgB = srcImageData[2];
+}
+
+/* Fraction of pixels in this frame that are non-background */
+function frameFillRatio(row, col) {
+  const { fw, fh, cols } = p();
+  const sw = cols * fw;
+  const src = srcImageData;
+  let filled = 0, total = fw * fh;
+  for (let y = 0; y < fh; y++) {
+    for (let x = 0; x < fw; x++) {
+      const si = ((row * fh + y) * sw + col * fw + x) * 4;
+      const r = src[si], g = src[si+1], b = src[si+2], a = src[si+3];
+      if (a > 128 && (Math.abs(r-bgR) > 30 || Math.abs(g-bgG) > 30 || Math.abs(b-bgB) > 30))
+        filled++;
+    }
+  }
+  return filled / total;
+}
+
+function autoDetectFrames(row) {
+  const { cols } = p();
+  let n = cols;
+  while (n > 1 && frameFillRatio(row, n - 1) < 0.02) n--;
+  return n;
+}
+
+function reloadGrid(resetFrames = true) {
+  if (!originalImage) return;
+  const { fw, fh, rows, cols } = p();
+  const sw = cols * fw, sh = rows * fh;
+  canvas.width = sw; canvas.height = sh;
+  ctx.clearRect(0, 0, sw, sh);
+  ctx.drawImage(originalImage, 0, 0, sw, sh);
+
+  const doAuto = document.getElementById('autoTrim').checked;
+  if (resetFrames || keepFrames.length !== rows) {
+    for (let r = 0; r < rows; r++) {
+      keepFrames[r] = doAuto ? autoDetectFrames(r) : cols;
+    }
+  }
+
+  /* Grid lines */
+  ctx.strokeStyle = 'rgba(233,69,96,0.5)'; ctx.lineWidth = 1;
+  for (let c = 0; c <= cols; c++) { ctx.beginPath(); ctx.moveTo(c*fw, 0); ctx.lineTo(c*fw, sh); ctx.stroke(); }
+  for (let r = 0; r <= rows; r++) { ctx.beginPath(); ctx.moveTo(0, r*fh); ctx.lineTo(sw, r*fh); ctx.stroke(); }
+
+  /* Labels + dim trimmed area */
+  ctx.font = '11px monospace';
+  for (let r = 0; r < rows; r++) {
+    const kf = keepFrames[r];
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(`row${r}(${kf}/${cols}f)`, 2, r*fh + 12);
+    if (kf < cols) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(kf * fw, r * fh, (cols - kf) * fw, fh);
+    }
+  }
+
+  buildRowList();
+}
+
+function renderStrip(row, vf) {
+  const { fw, fh, cols } = p();
+  const sw = cols * fw;
+  const out = document.createElement('canvas');
+  out.width = vf * fw; out.height = fh;
+  const oc = out.getContext('2d');
+  const id = oc.createImageData(out.width, out.height);
+
+  for (let col = 0; col < vf; col++) {
+    for (let y = 0; y < fh; y++) {
+      for (let x = 0; x < fw; x++) {
+        const si = ((row * fh + y) * sw + col * fw + x) * 4;
+        const r = srcImageData[si], g = srcImageData[si+1], b = srcImageData[si+2], a = srcImageData[si+3];
+        const isBg = Math.abs(r-bgR) < 30 && Math.abs(g-bgG) < 30 && Math.abs(b-bgB) < 30;
+        const di = (y * out.width + col * fw + x) * 4;
+        id.data[di]=r; id.data[di+1]=g; id.data[di+2]=b; id.data[di+3]=isBg ? 0 : a;
+      }
+    }
+  }
+  oc.putImageData(id, 0, 0);
+  return out;
+}
+
+function buildRowList() {
+  const { fw, fh, cols } = p();
+  const list = document.getElementById('rowList');
+  list.innerHTML = '';
+  for (let r = 0; r < keepFrames.length; r++) {
+    const kf = keepFrames[r];
+    const div = document.createElement('div');
+    div.className = 'row-item';
+    div.innerHTML = `<span class="name">row${r}: ${kf}/${cols}帧 ${fw}×${fh}</span>
+      <span class="trim-group">
+        <button title="减一帧">-</button>
+        <span class="trim-num">${kf}</span>
+        <button title="加一帧">+</button>
+      </span>
+      <button class="btn-dl">下载</button>`;
+
+    const [minus, plus] = div.querySelectorAll('.trim-group button');
+    minus.addEventListener('click', () => { if (keepFrames[r] > 1) { keepFrames[r]--; reloadGrid(false); } });
+    plus.addEventListener('click', () => { if (keepFrames[r] < cols) { keepFrames[r]++; reloadGrid(false); } });
+    div.querySelector('.btn-dl').addEventListener('click', () => {
+      downloadRow(r, renderStrip(r, keepFrames[r]));
+    });
+    list.appendChild(div);
+  }
+}
+
+function downloadRow(row, cnv) {
+  cnv.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `sprite_row${String(row).padStart(2,'0')}.png`;
+    a.click(); URL.revokeObjectURL(url);
+  });
+}
+
+function downloadAll() {
+  if (!originalImage) return;
+  for (let r = 0; r < keepFrames.length; r++) {
+    setTimeout(() => downloadRow(r, renderStrip(r, keepFrames[r])), r * 200);
+  }
+}
+</script>
+</body>
+</html>

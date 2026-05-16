@@ -102,9 +102,19 @@ void gamelib_update(gamelib_t *g)
     /* input */
     if (g_hal.input.poll) {
         g_hal.input.poll();
+        double now = gamelib_get_time(g);
         for (int i = 0; i < KEY_COUNT; i++) {
             g->key_prev[i] = g->keystate[i];
-            g->keystate[i] = g_hal.input.is_down((hal_key_t)i) ? 1 : 0;
+            
+            uint8_t raw_state = g_hal.input.is_down((hal_key_t)i) ? 1 : 0;
+            if (raw_state != g->keystate[i]) {
+                if (now - g->key_time[i] > 0.05) { /* 50ms 消抖 */
+                    g->keystate[i] = raw_state;
+                    g->key_time[i] = now;
+                }
+            } else {
+                g->key_time[i] = now; /* 只要没变，就刷新稳定时间 */
+            }
         }
         g->mouse_x = g_hal.input.mouse_x ? g_hal.input.mouse_x() : 0;
         g->mouse_y = g_hal.input.mouse_y ? g_hal.input.mouse_y() : 0;

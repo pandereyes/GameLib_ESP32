@@ -63,6 +63,7 @@ typedef struct {
 
     uint8_t       keystate[KEY_COUNT];
     uint8_t       key_prev[KEY_COUNT];
+    double        key_time[KEY_COUNT];
     int           mouse_x;
     int           mouse_y;
 } gamelib_t;
