@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瓦片集拼接工具 (Tileset Merger)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #ddd; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; display: flex; gap: 20px; }
+        .sidebar { flex: 0 0 300px; background: #2d2d2d; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .main { flex: 1; background: #2d2d2d; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display:flex; flex-direction: column; }
+        h1, h2 { margin-top: 0; color: #fff; font-size: 1.2rem; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #bbb; }
+        input[type="number"], input[type="file"] { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; }
+        .checkbox-group input { width: auto; }
+        button { background: #0e639c; color: #fff; border: none; padding: 10px 15px; width: 100%; border-radius: 4px; cursor: pointer; font-size: 1rem; margin-top: 10px; transition: background 0.2s;}
+        button:hover { background: #1177bb; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #drop-zone { border: 2px dashed #555; border-radius: 8px; padding: 30px; text-align: center; color: #888; background: #333; cursor: pointer; margin-bottom: 15px; transition: border 0.2s; }
+        #drop-zone.dragover { border-color: #0e639c; background: #3a3a3a; }
+        .canvas-container { flex: 1; overflow: auto; background: #111; border: 1px solid #444; border-radius: 4px; position: relative; background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; }
+        canvas { display: block; margin: 0 auto; }
+        .file-list { margin-top: 15px; max-height: 200px; overflow-y: auto; font-size: 0.85rem; }
+        .file-list-item { padding: 5px; border-bottom: 1px solid #444; word-break: break-all; }
+        #status { margin-top: 10px; font-size: 0.9rem; color: #4CAF50; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="sidebar">
+        <h2>🛠️ 拼接设置</h2>
+        
+        <div id="drop-zone">
+            点击选择或拖拽多个图片到此处<br><small>(支持 .png格式)</small>
+        </div>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button id="btn-add-more" style="margin-top: 0; background: #d97706;">➕ 追加图片</button>
+            <button id="btn-clear" style="margin-top: 0; background: #dc3545;">🗑️ 清空列表</button>
+        </div>
+        <input type="file" id="file-input" multiple accept="image/png, image/jpeg" style="display:none">
+
+        <div class="control-group">
+            <label>拼接模式</label>
+            <select id="mergeMode" style="width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: #fff; border-radius: 4px;">
+                <option value="direct">直接拼接整图 (保持原大小不切分)</option>
+                <option value="slice">将原图切分后拼接 (忽略原有排版)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>统一瓦片宽度 (Tile Width / px)</label>
+            <input type="number" id="tileW" value="32" min="1">
+        </div>
+        <div class="control-group">
+            <label>统一瓦片高度 (Tile Height / px)</label>
+            <input type="number" id="tileH" value="32" min="1">
+        </div>
+        <div class="control-group">
+            <label>输出列数 (Output Columns)</label>
+            <input type="number" id="outCols" value="10" min="1">
+        </div>
+        <div class="control-group checkbox-group">
+            <input type="checkbox" id="skipEmpty" checked>
+            <label for="skipEmpty" style="margin-bottom:0;">剔除完全透明的空白瓦片</label>
+        </div>
+
+        <button id="btn-process">开始拼接生成</button>
+        <button id="btn-download" disabled style="background:#28a745;">下载拼接后的图像 (PNG)</button>
+
+        <div id="status"></div>
+
+        <div class="file-list" id="file-list">
+            <div style="color:#888;">待处理文件列表...</div>
+        </div>
+    </div>
+
+    <div class="main">
+        <h2>预览区 (Preview)</h2>
+        <div class="canvas-container">
+            <canvas id="output-canvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const btnAddMore = document.getElementById('btn-add-more');
+    const btnClear = document.getElementById('btn-clear');
+    const fileListDiv = document.getElementById('file-list');
+    const btnProcess = document.getElementById('btn-process');
+    const btnDownload = document.getElementById('btn-download');
+    const canvas = document.getElementById('output-canvas');
+    const statusMsg = document.getElementById('status');
+    const ctx = canvas.getContext('2d');
+
+    let loadedFiles = [];
+
+    // Drag and drop setup
+    dropZone.addEventListener('click', () => fileInput.click());
+    btnAddMore.addEventListener('click', () => fileInput.click());
+    
+    btnClear.addEventListener('click', () => {
+        loadedFiles = [];
+        fileListDiv.innerHTML = '<div style="color:#888;">待处理文件列表...</div>';
+        statusMsg.textContent = '';
+        btnDownload.disabled = true;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    function handleFiles(files) {
+        // Convert to array and filter images
+        let newFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if (newFiles.length === 0) return;
+        
+        // Append instead of replacing
+        loadedFiles = loadedFiles.concat(newFiles);
+        
+        // Removed sorting here so newly added items stay at the end 
+        // to reflect the real-time adding sequence
+        
+        fileListDiv.innerHTML = '<strong>已选文件 (累计追加):</strong><br>' + 
+            loadedFiles.map((f, i) => `<div class="file-list-item">[编号 ${i}] ${f.name}</div>`).join('');
+            
+        statusMsg.textContent = `已准备 ${loadedFiles.length} 张图片`;
+        statusMsg.style.color = '#4CAF50';
+        btnDownload.disabled = true;
+
+        // Auto trigger the process when new images are added
+        btnProcess.click();
+    }
+
+    // Process logic
+    btnProcess.addEventListener('click', async () => {
+        if (loadedFiles.length === 0) return alert('请先选择或拖拽图片文件！');
+
+        const tw = parseInt(document.getElementById('tileW').value);
+        const th = parseInt(document.getElementById('tileH').value);
+        const outCols = parseInt(document.getElementById('outCols').value);
+        const skipEmpty = document.getElementById('skipEmpty').checked;
+        const mergeMode = document.getElementById('mergeMode').value;
+
+        statusMsg.textContent = '处理中...';
+        btnDownload.disabled = true;
+
+        try {
+            const tiles = [];
+
+            for (let file of loadedFiles) {
+                const img = await loadImage(file);
+                
+                if (mergeMode === 'direct') {
+                    // Direct mode: treat the whole image as a single tile
+                    // Draw it onto a canvas of size tw * th (centered or top-left)
+                    const tCanv = document.createElement('canvas');
+                    tCanv.width = tw;
+                    tCanv.height = th;
+                    const tCtx = tCanv.getContext('2d',{ willReadFrequently: true });
+                    // Optional: You could draw the image scaled or centered if you want, 
+                    // but here we just draw it at 0,0 clipping if it's too big, or leaving blank space if too small.
+                    tCtx.drawImage(img, 0, 0); 
+                    
+                    if (skipEmpty && isCanvasBlank(tCanv, tCtx)) {
+                        continue;
+                    }
+                    tiles.push(tCanv);
+
+                } else {
+                    // Slice mode
+                    const rCols = Math.floor(img.width / tw);
+                    const rRows = Math.floor(img.height / th);
+
+                    // Slice the image into grid tiles
+                    for (let y = 0; y < rRows; y++) {
+                        for (let x = 0; x < rCols; x++) {
+                            const tCanv = document.createElement('canvas');
+                            tCanv.width = tw;
+                            tCanv.height = th;
+                            const tCtx = tCanv.getContext('2d',{ willReadFrequently: true });
+                            tCtx.drawImage(img, x * tw, y * th, tw, th, 0, 0, tw, th);
+                            
+                            // Check empty
+                            if (skipEmpty && isCanvasBlank(tCanv, tCtx)) {
+                                continue;
+                            }
+                            
+                            tiles.push(tCanv);
+                        }
+                    }
+                }
+            }
+
+            // Repack tiles into atlas
+            if (tiles.length === 0) throw new Error("没有检测到有效瓦片！");
+
+            const rows = Math.ceil(tiles.length / outCols);
+            canvas.width = outCols * tw;
+            canvas.height = rows * th;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // clear just in case
+            
+            tiles.forEach((t, index) => {
+                const dx = (index % outCols) * tw;
+                const dy = Math.floor(index / outCols) * th;
+                ctx.drawImage(t, dx, dy);
+            });
+
+            statusMsg.textContent = `生成成功！共打包 ${tiles.length} 个独立瓦片，尺寸: ${canvas.width}x${canvas.height}`;
+            btnDownload.disabled = false;
+            
+        } catch (err) {
+            statusMsg.textContent = `错误: ${err.message}`;
+            statusMsg.style.color = '#ff6b6b';
+        }
+    });
+
+    // Download functionality
+    btnDownload.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'merged_tileset.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+
+    // Helper: Load file into Image object
+    function loadImage(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Helper: Check if a tile is fully transparent
+    function isCanvasBlank(canvas, context) {
+        const pixelBuffer = new Uint32Array(context.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+        // Returns true if all pixels are 0 (fully transparent)
+        return !pixelBuffer.some(color => color !== 0);
+    }
+</script>
+
+</body>
+</html>

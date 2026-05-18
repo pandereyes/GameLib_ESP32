@@ -1,0 +1,39 @@
+{
+    "activeFile": "",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "fileStates": {
+        "map.tmx": {
+            "scale": 2,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 227.75,
+                "y": 115.25
+            }
+        },
+        "tilemap.tsx": {
+            "scaleInDock": 3,
+            "scaleInEditor": 1
+        }
+    },
+    "last.exportedFilePath": "E:/1.work/4.HUAYING/1.project/11.GameLib_MCU/1.source/gamelib_for_esp32/main/demos/demo_17_rpg_demo_resource/tiled_project",
+    "last.imagePath": "E:/1.work/4.HUAYING/1.project/11.GameLib_MCU/1.source/gamelib_for_esp32/main/demos/demo_17_rpg_demo_resource",
+    "map.lastUsedExportFilter": "CSV 文件 (*.csv)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 16,
+    "map.tileWidth": 16,
+    "openFiles": [
+    ],
+    "project": "demo.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "map.tmx",
+        "tilemap.tsx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 16,
+        "width": 16
+    }
+}

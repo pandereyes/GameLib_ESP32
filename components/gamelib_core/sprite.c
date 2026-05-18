@@ -219,6 +219,46 @@ void gamelib_draw_sprite_frame_scaled(gamelib_t *g, int id, int dst_x, int dst_y
     }
 }
 
+void gamelib_draw_sprite_atlas_frame_scaled(gamelib_t *g, int id, int dst_x, int dst_y,
+                                            int atlas_x, int atlas_y,
+                                            int fw, int fh, int frame, int dst_w, int dst_h,
+                                            int flags)
+{
+    if (id < 0 || id >= MAX_SPRITES || !g->sprites[id].used) return;
+    sprite_t *sp = &g->sprites[id];
+    if (dst_w <= 0 || dst_h <= 0 || fw <= 0 || fh <= 0) return;
+
+    int sheet_w = sp->width;
+    int sheet_h = sp->height;
+    int src_ox = atlas_x + frame * fw;
+    int src_oy = atlas_y;
+    if (src_ox + fw > sheet_w || src_oy + fh > sheet_h) return;
+    framebuffer_t *fb = &g->fb;
+
+    for (int row = 0; row < dst_h; row++) {
+        int fy = row * fh / dst_h;
+        int src_y = src_oy + ((flags & SPRITE_FLIP_V) ? (fh - 1 - fy) : fy);
+        for (int col = 0; col < dst_w; col++) {
+            int fx = col * fw / dst_w;
+            int src_x = src_ox + ((flags & SPRITE_FLIP_H) ? (fw - 1 - fx) : fx);
+            gamelib_color_t c = sp->pixels[src_y * sheet_w + src_x];
+            if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
+            int px = dst_x + col;
+            int py = dst_y + row;
+            if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
+                py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
+                gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
+                if ((flags & SPRITE_ALPHA) && sp->alpha) {
+                    uint8_t a = sp->alpha[src_y * sheet_w + src_x];
+                    BLEND_ALPHA(c, *dst, a);
+                } else {
+                    *dst = c;
+                }
+            }
+        }
+    }
+}
+
 void gamelib_draw_sprite_rotated(gamelib_t *g, int id, int cx, int cy,
                                   double angle, int flags)
 {

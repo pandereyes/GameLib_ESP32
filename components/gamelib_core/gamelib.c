@@ -9,6 +9,9 @@ gamelib_hal_t g_hal;
 tilemap_t *g_tilemaps = NULL;
 font_t    *g_fonts = NULL;
 
+extern const tileprop_desc_t tileprop_table[];
+extern const int             tileprop_table_size;
+
 int gamelib_init(gamelib_t *g, int w, int h, int target_fps)
 {
     memset(g, 0, sizeof(*g));
@@ -288,4 +291,50 @@ int gamelib_file_close(gamelib_t *g, void *file)
     (void)g;
     if (!g_hal.fs.close || !file) return -1;
     return g_hal.fs.close(file);
+}
+
+/* --- tile property query --- */
+bool gamelib_tile_prop_bool(int firstgid, const char *name, int tile_gid)
+{
+    int local_id = tile_gid - firstgid;
+    for (int i = 0; i < tileprop_table_size; i++) {
+        const tileprop_desc_t *d = &tileprop_table[i];
+        if (d->firstgid == firstgid && d->type == TILEPROP_TYPE_BOOL &&
+            strcmp(d->name, name) == 0) {
+            if (local_id < 0 || local_id >= d->count * 32) return false;
+            const uint32_t *bits = (const uint32_t*)d->data;
+            return (bits[local_id >> 5] >> (local_id & 0x1F)) & 1;
+        }
+    }
+    return false;
+}
+
+int gamelib_tile_prop_int(int firstgid, const char *name, int tile_gid)
+{
+    int local_id = tile_gid - firstgid;
+    for (int i = 0; i < tileprop_table_size; i++) {
+        const tileprop_desc_t *d = &tileprop_table[i];
+        if (d->firstgid == firstgid && d->type == TILEPROP_TYPE_INT &&
+            strcmp(d->name, name) == 0) {
+            if (local_id < 0 || local_id >= d->count) return 0;
+            const int32_t *arr = (const int32_t*)d->data;
+            return arr[local_id];
+        }
+    }
+    return 0;
+}
+
+float gamelib_tile_prop_float(int firstgid, const char *name, int tile_gid)
+{
+    int local_id = tile_gid - firstgid;
+    for (int i = 0; i < tileprop_table_size; i++) {
+        const tileprop_desc_t *d = &tileprop_table[i];
+        if (d->firstgid == firstgid && d->type == TILEPROP_TYPE_FLOAT &&
+            strcmp(d->name, name) == 0) {
+            if (local_id < 0 || local_id >= d->count) return 0.0f;
+            const float *arr = (const float*)d->data;
+            return arr[local_id];
+        }
+    }
+    return 0.0f;
 }

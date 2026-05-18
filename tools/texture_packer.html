@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>纹理图集打包工具 (Texture Packer)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #ddd; margin: 0; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; height: 100vh; }
+        .header { margin-bottom: 20px; }
+        h1, h2 { margin: 0 0 10px 0; color: #fff; }
+        .container { display: flex; gap: 20px; flex: 1; min-height: 0; }
+        .sidebar { flex: 0 0 320px; background: #2d2d2d; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow-y: auto; }
+        .main { flex: 1; background: #2d2d2d; padding: 15px; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .control-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; font-size: 0.85rem; color: #bbb; }
+        input[type="number"] { width: 100%; padding: 6px; background: #3d3d3d; border: 1px solid #555; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        .row { display: flex; gap: 10px; }
+        .row > div { flex: 1; }
+        button { background: #0e639c; color: #fff; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; transition: background 0.2s; width: 100%; margin-bottom: 8px;}
+        button:hover { background: #1177bb; }
+        button.action-btn { background: #d97706; }
+        button.action-btn:hover { background: #e68a00; }
+        button.success-btn { background: #28a745; }
+        button.success-btn:hover { background: #2fbc4d; }
+        
+        #drop-zone { border: 2px dashed #555; border-radius: 8px; padding: 20px; text-align: center; color: #888; background: #333; cursor: pointer; transition: border 0.2s; margin-bottom: 15px; }
+        #drop-zone.dragover { border-color: #0e639c; background: #3a3a3a; }
+        
+        .canvas-wrapper { flex: 1; overflow: auto; background: #111; border: 1px solid #444; border-radius: 4px; position: relative; 
+            background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%); 
+            background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; 
+        }
+        canvas { display: block; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+
+        textarea { width: 100%; height: 120px; background: #1e1e1e; color: #9cdcfe; border: 1px solid #444; border-radius: 4px; padding: 8px; box-sizing: border-box; font-family: monospace; resize: vertical; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🧩 自由图集打包器 (Free Texture Packer)</h1>
+    <span style="color:#aaa; font-size: 0.9rem;">直接拼接任意大小的图片，支持吸附、拖拽、自动排版、自动裁剪。专门用于生成带不同偏移量的 SpriteSheet。</span>
+</div>
+
+<div class="container">
+    <div class="sidebar">
+        <div id="drop-zone">
+            点击或拖拽多张图片到此处<br><small>(大小任意，直接保留原尺寸)</small>
+        </div>
+        <input type="file" id="file-input" multiple accept="image/png, image/jpeg" style="display:none">
+
+        <button id="btn-add-files" style="background: #007acc; margin-bottom: 10px;">➕ 添加图片</button>
+        <button id="btn-clear" style="background: #dc3545;">🗑️ 清空所有</button>
+
+        <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+
+        <div class="row">
+            <div class="control-group">
+                <label>画布宽度 (Width)</label>
+                <input type="number" id="cWidth" value="512" min="1">
+            </div>
+            <div class="control-group">
+                <label>画布高度 (Height)</label>
+                <input type="number" id="cHeight" value="512" min="1">
+            </div>
+        </div>
+
+        <button id="btn-auto-pack" class="action-btn">✨ 自动重新排版 (按高度排列)</button>
+        <button id="btn-auto-crop" class="action-btn">✂️ 自动裁剪画布空白区域</button>
+        
+        <div class="control-group" style="margin-top:10px;">
+            <input type="checkbox" id="showBorders" checked>
+            <label for="showBorders" style="display:inline; cursor:pointer;">显示图片的边缘辅助线</label>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+
+        <button id="btn-download" class="success-btn">💾 导出合并后的大图 (PNG)</button>
+
+        <label style="margin-top: 15px;">生成的 C 语言偏移量坐标 (GameLib):</label>
+        <textarea id="code-output" readonly></textarea>
+    </div>
+
+    <div class="main">
+        <div class="canvas-wrapper" id="canvas-wrapper">
+            <canvas id="canvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const cWidthInp = document.getElementById('cWidth');
+    const cHeightInp = document.getElementById('cHeight');
+    const codeOut = document.getElementById('code-output');
+
+    let sprites = []; // { id, name, img, x, y, w, h }
+    let spriteIdCounter = 0;
+
+    // Drag states
+    let isDragging = false;
+    let dragTarget = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    // Init canvas
+    function resizeCanvas() {
+        canvas.width = parseInt(cWidthInp.value) || 512;
+        canvas.height = parseInt(cHeightInp.value) || 512;
+        draw();
+    }
+    cWidthInp.addEventListener('change', resizeCanvas);
+    cHeightInp.addEventListener('change', resizeCanvas);
+    resizeCanvas();
+
+    // -- File Loading --
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const btnAddFiles = document.getElementById('btn-add-files');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    btnAddFiles.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    async function handleFiles(files) {
+        let newFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if(newFiles.length === 0) return;
+        
+        newFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+        for(let file of newFiles) {
+            let img = await loadImage(file);
+            sprites.push({
+                id: spriteIdCounter++,
+                name: file.name.split('.')[0],
+                img: img,
+                x: 0, y: 0,
+                w: img.width,
+                h: img.height
+            });
+        }
+        autoPack(); 
+    }
+
+    function loadImage(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // -- Tools --
+    document.getElementById('btn-clear').addEventListener('click', () => {
+        sprites = []; draw(); updateCode();
+    });
+
+    document.getElementById('btn-auto-pack').addEventListener('click', autoPack);
+    document.getElementById('btn-auto-crop').addEventListener('click', autoCrop);
+
+    document.getElementById('btn-download').addEventListener('click', () => {
+        if(sprites.length===0) return alert('没有任何图片可以导出！');
+        
+        let chk = document.getElementById('showBorders');
+        let wasBorders = false;
+        if(chk && chk.checked) {
+            wasBorders = true;
+            chk.checked = false;
+            draw();
+        }
+
+        const link = document.createElement('a');
+        link.download = 'texture_atlas.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        
+        if(wasBorders && chk) {
+            chk.checked = true;
+            draw();
+        }
+    });
+
+    function autoPack() {
+        if(sprites.length === 0) return;
+        // Sort by height descending
+        sprites.sort((a,b) => b.h - a.h);
+        
+        let cx = 0, cy = 0, rowH = 0;
+        let pad = 2; // pixel padding
+        
+        for(let s of sprites) {
+            if (cx + s.w > canvas.width) {
+                cx = 0; 
+                cy += rowH + pad; 
+                rowH = 0;
+            }
+            // Auto expand canvas height if needed
+            if (cy + s.h > canvas.height) {
+                canvas.height = cy + s.h + 50;
+                cHeightInp.value = canvas.height;
+            }
+            s.x = cx;
+            s.y = cy;
+            cx += s.w + pad;
+            if (s.h > rowH) rowH = s.h;
+        }
+        draw();
+    }
+
+    function autoCrop() {
+        let maxW = 1, maxH = 1;
+        for(let s of sprites) {
+            if(s.x + s.w > maxW) maxW = s.x + s.w;
+            if(s.y + s.h > maxH) maxH = s.y + s.h;
+        }
+        cWidthInp.value = maxW;
+        cHeightInp.value = maxH;
+        resizeCanvas();
+    }
+
+    // -- Snapping & Dragging --
+    function getSnap(val, edges, thresh) {
+        let best = thresh;
+        let snapVal = val;
+        for(let e of edges) {
+            let dist = Math.abs(val - e);
+            if(dist < best) { best = dist; snapVal = e; }
+        }
+        return { snapped: best < thresh, val: snapVal };
+    }
+
+    canvas.addEventListener('mousedown', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        
+        // Pick from top to bottom
+        for(let i = sprites.length-1; i >= 0; i--) {
+            let s = sprites[i];
+            if(mx >= s.x && mx <= s.x + s.w && my >= s.y && my <= s.y + s.h) {
+                dragTarget = s;
+                offsetX = mx - s.x;
+                offsetY = my - s.y;
+                isDragging = true;
+                
+                // bring to front
+                sprites.splice(i, 1);
+                sprites.push(s);
+                draw();
+                return;
+            }
+        }
+    });
+
+    window.addEventListener('mousemove', e => {
+        if(!isDragging || !dragTarget) return;
+        const rect = canvas.getBoundingClientRect();
+        let mx = e.clientX - rect.left;
+        let my = e.clientY - rect.top;
+
+        dragTarget.x = Math.round(mx - offsetX);
+        dragTarget.y = Math.round(my - offsetY);
+
+        // Calculate snap edges
+        let eX = [0, canvas.width];
+        let eY = [0, canvas.height];
+        for(let s of sprites) {
+            if(s === dragTarget) continue;
+            eX.push(s.x, s.x + s.w);   // left, right
+            eY.push(s.y, s.y + s.h);   // top, bottom
+        }
+
+        const THRESHOLD = 8;
+        // X snapping
+        let snapL = getSnap(dragTarget.x, eX, THRESHOLD);
+        let snapR = getSnap(dragTarget.x + dragTarget.w, eX, THRESHOLD);
+        if(snapL.snapped) dragTarget.x = snapL.val;
+        else if(snapR.snapped) dragTarget.x = snapR.val - dragTarget.w;
+
+        // Y snapping
+        let snapT = getSnap(dragTarget.y, eY, THRESHOLD);
+        let snapB = getSnap(dragTarget.y + dragTarget.h, eY, THRESHOLD);
+        if(snapT.snapped) dragTarget.y = snapT.val;
+        else if(snapB.snapped) dragTarget.y = snapB.val - dragTarget.h;
+
+        draw();
+    });
+
+    window.addEventListener('mouseup', () => {
+        if(isDragging) {
+            isDragging = false;
+            dragTarget = null;
+            draw();
+            updateCode(); // update code when drop
+        }
+    });
+
+    // -- Render & Export --
+    document.getElementById('showBorders').addEventListener('change', draw);
+    
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let showBorders = document.getElementById('showBorders').checked;
+
+        for(let s of sprites) {
+            ctx.drawImage(s.img, s.x, s.y);
+            
+            if (showBorders && dragTarget !== s) {
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.strokeRect(s.x, s.y, s.w, s.h);
+                ctx.setLineDash([]); // reset
+            }
+
+            // Draw border if it's the target being dragged
+            if(dragTarget === s) {
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(s.x, s.y, s.w, s.h);
+            }
+        }
+        updateCode();
+    }
+
+    function updateCode() {
+        if (sprites.length === 0) {
+            codeOut.value = "请先添加图片...";
+            return;
+        }
+        let str = `// --- 自动生成的图集坐标 (可以直接放入GameLib使用) ---\n`;
+        // generate structs
+        sprites.forEach((s, idx) => {
+            str += `// 图片名称: ${s.name}\n`;
+            // args: atlas_x, atlas_y, frame_w, frame_h
+            str += `animation_clip_t clip_${s.name.replace(/[^a-zA-Z0-9]/g, '_')} = {\n`;
+            str += `    .start_x = ${s.x},\n`;
+            str += `    .start_y = ${s.y},\n`;
+            str += `    .frame_w = ${s.w},\n`;
+            str += `    .frame_h = ${s.h}, \n`;
+            str += `    // 请手动补充:\n`;
+            str += `    // .frame_count = 1,\n`;
+            str += `    // .ticks_per_frame = 10\n`;
+            str += `};\n\n`;
+        });
+        codeOut.value = str;
+    }
+</script>
+
+</body>
+</html>
