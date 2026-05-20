@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Art Image Scaler / 像素画缩放工具</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        input[type="number"] {
+            width: 60px;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .preview-container {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fafafa;
+            overflow: auto;
+        }
+        canvas {
+            /* 确保在浏览器中预览时也保持像素锐利 */
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👾 像素画缩放工具 (Nearest-Neighbor Scaler)</h1>
+        
+        <div class="controls">
+            <input type="file" id="imageInput" accept="image/png, image/jpeg, image/gif, image/webp">
+            
+            <label for="scaleFactor">放大倍数:</label>
+            <input type="number" id="scaleFactor" value="2" min="1" max="20" step="1">
+            <span>x</span>
+            
+            <button id="saveBtn" disabled>💾 保存图片</button>
+        </div>
+
+        <div class="preview-container">
+            <canvas id="canvas"></canvas>
+            <p id="placeholder" style="color: #999;">请选择要缩放的图片...</p>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const scaleFactorInput = document.getElementById('scaleFactor');
+        const saveBtn = document.getElementById('saveBtn');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const placeholder = document.getElementById('placeholder');
+        
+        let currentImage = null;
+        let originalFileName = 'image';
+
+        // 监听文件选择
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // 保存原始文件名，去扩展名
+            originalFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    currentImage = img;
+                    placeholder.style.display = 'none';
+                    updateCanvas();
+                    saveBtn.disabled = false;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 监听倍数改变
+        scaleFactorInput.addEventListener('input', () => {
+            if (currentImage) updateCanvas();
+        });
+
+        // 更新画布内容
+        function updateCanvas() {
+            if (!currentImage) return;
+            
+            const scale = parseInt(scaleFactorInput.value) || 1;
+            
+            // 设置新的画布尺寸
+            canvas.width = currentImage.width * scale;
+            canvas.height = currentImage.height * scale;
+            
+            // 【关键代码】关闭抗锯齿平滑效果，使用最近邻插值（Nearest-Neighbor）
+            ctx.imageSmoothingEnabled = false;
+            
+            // 绘制缩放后的图像
+            ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+        }
+
+        // 保存文件
+        saveBtn.addEventListener('click', () => {
+            if (!currentImage) return;
+            
+            const scale = parseInt(scaleFactorInput.value) || 1;
+            const newFileName = `${originalFileName}_${scale}x.png`;
+            
+            // 将画布内容转为数据 URL
+            const dataUrl = canvas.toDataURL('image/png');
+            
+            // 创建瞎子链接触发下载
+            const link = document.createElement('a');
+            link.download = newFileName;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    </script>
+</body>
+</html>

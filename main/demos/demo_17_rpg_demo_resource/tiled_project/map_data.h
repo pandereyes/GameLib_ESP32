@@ -9,8 +9,8 @@
 /* === Map metadata === */
 #define MAP_WIDTH        30
 #define MAP_HEIGHT       20
-#define MAP_TILE_WIDTH   16
-#define MAP_TILE_HEIGHT  16
+#define MAP_TILE_WIDTH   32
+#define MAP_TILE_HEIGHT  32
 
 /* tileset "tilemap" */
 #define MAP_TILESET_TILEMAP_FIRSTGID  0
@@ -26,5 +26,9 @@ extern const uint32_t tileprop_obstacle[19];
 #define TILEPROP_OBSTACLE_EXISTS  1
 #define TILEPROP_OBSTACLE_WORDS   19
 #define TILE_HAS_OBSTACLE(tile_idx)  ((tileprop_obstacle[(tile_idx) >> 5] >> ((tile_idx) & 0x1F)) & 1)
+
+/* === Object layer data === */
+extern const map_obj_t map_obj_slime[5];
+#define MAP_OBJ_SLIME_COUNT  5
 
 #endif /* MAP_DATA_H */

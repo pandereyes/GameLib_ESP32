@@ -65,3 +65,14 @@ const tileprop_desc_t tileprop_table[1] = {
 
 const int tileprop_table_size = 1;
 
+/* === Object layer data === */
+
+// === object group: "slime" ===
+const map_obj_t map_obj_slime[5] = {
+    {1, 225.0f, 96.5f, 79.0f, 78.5f, ""},
+    {4, 96.0f, 240.0f, 80.5f, 64.0f, ""},
+    {5, 64.5f, 128.0f, 79.0f, 63.0f, ""},
+    {6, 319.5f, 159.5f, 129.0f, 48.5f, ""},
+    {7, 240.5f, 256.5f, 112.0f, 48.0f, ""},
+};
+

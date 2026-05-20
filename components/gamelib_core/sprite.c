@@ -95,20 +95,64 @@ void gamelib_draw_sprite_region(gamelib_t *g, int id, int dst_x, int dst_y,
 {
     if (id < 0 || id >= MAX_SPRITES || !g->sprites[id].used) return;
     sprite_t *sp = &g->sprites[id];
-    if (sx < 0) sx = 0;
-    if (sy < 0) sy = 0;
+    if (sw <= 0 || sh <= 0) return;
+
+    if (sx < 0) {
+        dst_x -= sx;
+        sw += sx;
+        sx = 0;
+    }
+    if (sy < 0) {
+        dst_y -= sy;
+        sh += sy;
+        sy = 0;
+    }
+    if (sx >= sp->width || sy >= sp->height) return;
     if (sx + sw > sp->width)  sw = sp->width - sx;
     if (sy + sh > sp->height) sh = sp->height - sy;
+    if (sw <= 0 || sh <= 0) return;
+
     framebuffer_t *fb = &g->fb;
+    int clip_l = fb->clip_x;
+    int clip_t = fb->clip_y;
+    int clip_r = fb->clip_x + fb->clip_w;
+    int clip_b = fb->clip_y + fb->clip_h;
+
+    if (dst_x < clip_l) {
+        int cut = clip_l - dst_x;
+        sx += cut;
+        sw -= cut;
+        dst_x = clip_l;
+    }
+    if (dst_y < clip_t) {
+        int cut = clip_t - dst_y;
+        sy += cut;
+        sh -= cut;
+        dst_y = clip_t;
+    }
+    if (dst_x + sw > clip_r) sw = clip_r - dst_x;
+    if (dst_y + sh > clip_b) sh = clip_b - dst_y;
+    if (sw <= 0 || sh <= 0) return;
+
+    const int src_stride = sp->width;
+    const int dst_stride = fb->width;
+    if (!sp->has_color_key) {
+        for (int row = 0; row < sh; row++) {
+            const gamelib_color_t *src = &sp->pixels[(sy + row) * src_stride + sx];
+            gamelib_color_t *dst = &fb->pixels[(dst_y + row) * dst_stride + dst_x];
+            memcpy(dst, src, (size_t)sw * sizeof(*dst));
+        }
+        return;
+    }
+
+    gamelib_color_t ck = sp->color_key;
     for (int row = 0; row < sh; row++) {
+        const gamelib_color_t *src = &sp->pixels[(sy + row) * src_stride + sx];
+        gamelib_color_t *dst = &fb->pixels[(dst_y + row) * dst_stride + dst_x];
         for (int col = 0; col < sw; col++) {
-            gamelib_color_t c = sp->pixels[(sy + row) * sp->width + (sx + col)];
-            if (sp->has_color_key && c == sp->color_key) continue;
-            int px = dst_x + col;
-            int py = dst_y + row;
-            if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
-                py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
-                fb->pixels[py * fb->width + px] = c;
+            gamelib_color_t c = src[col];
+            if (c != ck) {
+                dst[col] = c;
             }
         }
     }
@@ -235,20 +279,64 @@ void gamelib_draw_sprite_atlas_frame_scaled(gamelib_t *g, int id, int dst_x, int
     if (src_ox + fw > sheet_w || src_oy + fh > sheet_h) return;
     framebuffer_t *fb = &g->fb;
 
+    bool has_ck  = sp->has_color_key;
+    gamelib_color_t ck = sp->color_key;
+    bool use_alpha = ((flags & SPRITE_ALPHA) && sp->alpha);
+    bool check_ck = (flags & SPRITE_COLORKEY) && has_ck;
+    bool flip_h = (flags & SPRITE_FLIP_H);
+    bool flip_v = (flags & SPRITE_FLIP_V);
+
+    int sx = dst_w / fw;
+    int sy = dst_h / fh;
+
+    if (sx >= 1 && sy >= 1 && dst_w == fw * sx && dst_h == fh * sy) {
+        /* --- 整数倍缩放快速路径: 无除法, 每源像素读一次写 sx×sy 块 --- */
+        for (int fy = 0; fy < fh; fy++) {
+            int src_y = src_oy + (flip_v ? (fh - 1 - fy) : fy);
+            int dy = dst_y + fy * sy;
+            if (dy + sy <= fb->clip_y || dy >= fb->clip_y + fb->clip_h) continue;
+            for (int fx = 0; fx < fw; fx++) {
+                int src_x = src_ox + (flip_h ? (fw - 1 - fx) : fx);
+                gamelib_color_t c = sp->pixels[src_y * sheet_w + src_x];
+                if (check_ck && c == ck) continue;
+                int base_dx = dst_x + fx * sx;
+
+                for (int ry = 0; ry < sy; ry++) {
+                    int py = dy + ry;
+                    if (py < fb->clip_y || py >= fb->clip_y + fb->clip_h) continue;
+                    gamelib_color_t *prow = &fb->pixels[py * fb->width];
+                    for (int rx = 0; rx < sx; rx++) {
+                        int px = base_dx + rx;
+                        if (px < fb->clip_x || px >= fb->clip_x + fb->clip_w) continue;
+                        gamelib_color_t *dst = &prow[px];
+                        if (use_alpha) {
+                            uint8_t a = sp->alpha[src_y * sheet_w + src_x];
+                            BLEND_ALPHA(c, *dst, a);
+                        } else {
+                            *dst = c;
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    /* --- 通用缩放路径 (非整数倍) --- */
     for (int row = 0; row < dst_h; row++) {
         int fy = row * fh / dst_h;
-        int src_y = src_oy + ((flags & SPRITE_FLIP_V) ? (fh - 1 - fy) : fy);
+        int src_y = src_oy + (flip_v ? (fh - 1 - fy) : fy);
         for (int col = 0; col < dst_w; col++) {
             int fx = col * fw / dst_w;
-            int src_x = src_ox + ((flags & SPRITE_FLIP_H) ? (fw - 1 - fx) : fx);
+            int src_x = src_ox + (flip_h ? (fw - 1 - fx) : fx);
             gamelib_color_t c = sp->pixels[src_y * sheet_w + src_x];
-            if ((flags & SPRITE_COLORKEY) && sp->has_color_key && c == sp->color_key) continue;
+            if (check_ck && c == ck) continue;
             int px = dst_x + col;
             int py = dst_y + row;
             if (px >= fb->clip_x && px < fb->clip_x + fb->clip_w &&
                 py >= fb->clip_y && py < fb->clip_y + fb->clip_h) {
                 gamelib_color_t *dst = &fb->pixels[py * fb->width + px];
-                if ((flags & SPRITE_ALPHA) && sp->alpha) {
+                if (use_alpha) {
                     uint8_t a = sp->alpha[src_y * sheet_w + src_x];
                     BLEND_ALPHA(c, *dst, a);
                 } else {

@@ -8,7 +8,10 @@
       "Skill(superpowers:writing-plans)",
       "Skill(superpowers:writing-plans:*)",
       "Skill(superpowers:subagent-driven-development)",
-      "Skill(superpowers:subagent-driven-development:*)"
+      "Skill(superpowers:subagent-driven-development:*)",
+      "Read(//d/ESP-IDF/v5.4.1/esp-idf/components/esp_lcd/spi/**)",
+      "Read(//d/ESP-IDF/v5.4.1/esp-idf/components/esp_lcd/src/**)",
+      "Read(//d/ESP-IDF/v5.4.1/esp-idf/components/esp_lcd/**)"
     ],
     "additionalDirectories": [
       "e:\\1.work\\4.HUAYING\\1.project\\11.GameLib_MCU\\1.source\\gamelib_for_esp32\\docs\\superpowers"
