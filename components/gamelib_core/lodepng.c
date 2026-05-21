@@ -71,11 +71,22 @@ lodepng source code. Don't forget to remove "static" if you copypaste them
 from here.*/
 
 #ifdef LODEPNG_COMPILE_ALLOCATORS
+
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
+
 static void* lodepng_malloc(size_t size) {
 #ifdef LODEPNG_MAX_ALLOC
   if(size > LODEPNG_MAX_ALLOC) return 0;
 #endif
+#ifdef ESP_PLATFORM
+  void* ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+  if (!ptr) ptr = heap_caps_malloc(size, MALLOC_CAP_DEFAULT);
+  return ptr;
+#else
   return malloc(size);
+#endif
 }
 
 /* NOTE: when realloc returns NULL, it leaves the original memory untouched */
@@ -83,11 +94,21 @@ static void* lodepng_realloc(void* ptr, size_t new_size) {
 #ifdef LODEPNG_MAX_ALLOC
   if(new_size > LODEPNG_MAX_ALLOC) return 0;
 #endif
+#ifdef ESP_PLATFORM
+  void* new_ptr = heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM);
+  if (!new_ptr) new_ptr = heap_caps_realloc(ptr, new_size, MALLOC_CAP_DEFAULT);
+  return new_ptr;
+#else
   return realloc(ptr, new_size);
+#endif
 }
 
 static void lodepng_free(void* ptr) {
+#ifdef ESP_PLATFORM
+  heap_caps_free(ptr);
+#else
   free(ptr);
+#endif
 }
 #else /*LODEPNG_COMPILE_ALLOCATORS*/
 /* TODO: support giving additional void* payload to the custom allocators */
