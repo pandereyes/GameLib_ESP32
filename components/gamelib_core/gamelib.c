@@ -168,6 +168,24 @@ int gamelib_get_height(gamelib_t *g)
     return g->fb.height;
 }
 
+void gamelib_animator_update(gamelib_t *g, gamelib_animator_t *a)
+{
+    if (!g || !a) return;
+
+    double now_s = gamelib_get_time(g);
+    uint32_t now_ms = (now_s > 0.0) ? (uint32_t)(now_s * 1000.0) : 0;
+    if (!a->has_time_sample) {
+        a->last_time_ms = now_ms;
+        a->has_time_sample = true;
+        a->frame_changed = false;
+        return;
+    }
+
+    uint32_t delta_ms = now_ms - a->last_time_ms;
+    a->last_time_ms = now_ms;
+    gamelib_animator_update_ms(a, delta_ms);
+}
+
 /* --- input --- */
 bool gamelib_is_key_down(gamelib_t *g, int key)
 {

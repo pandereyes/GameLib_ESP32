@@ -13,6 +13,9 @@
 #include "tilemap.h"
 #include "font.h"
 #include "ui.h"
+#include "anim.h"
+#include "camera.h"
+#include "collision.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,6 +98,9 @@ double gamelib_get_delta_time(gamelib_t *g);
 int    gamelib_get_width(gamelib_t *g);
 int    gamelib_get_height(gamelib_t *g);
 
+/* --- animation --- */
+void gamelib_animator_update(gamelib_t *g, gamelib_animator_t *a);
+
 /* --- drawing --- */
 void gamelib_clear(gamelib_t *g, gamelib_color_t color);
 void gamelib_set_pixel(gamelib_t *g, int x, int y, gamelib_color_t c);
@@ -129,6 +135,9 @@ void gamelib_draw_printf(gamelib_t *g, int x, int y, gamelib_color_t c, const ch
 int  gamelib_sprite_create(gamelib_t *g, int w, int h);
 int  gamelib_sprite_load_bmp(gamelib_t *g, const uint8_t *data, size_t len);
 int  gamelib_sprite_load_png(gamelib_t *g, const uint8_t *data, size_t len);
+int  gamelib_sprite_load_bmp_file(gamelib_t *g, const char *path);
+int  gamelib_sprite_load_png_file(gamelib_t *g, const char *path);
+int  gamelib_sprite_load_image_file(gamelib_t *g, const char *path);
 void gamelib_sprite_free(gamelib_t *g, int id);
 void gamelib_sprite_set_pixel(gamelib_t *g, int id, int x, int y, gamelib_color_t c);
 void gamelib_draw_sprite(gamelib_t *g, int id, int x, int y);
@@ -245,6 +254,8 @@ void gamelib_fill_cell(gamelib_t *g, int ox, int oy, int row, int col, int cell_
 
 /* --- file i/o --- */
 void* gamelib_file_open(gamelib_t *g, const char *path, const char *mode);
+void* gamelib_file_load(gamelib_t *g, const char *path, size_t *out_len);
+void  gamelib_file_free(void *data);
 int   gamelib_file_read(gamelib_t *g, void *file, uint8_t *buf, int len);
 int   gamelib_file_write(gamelib_t *g, void *file, const uint8_t *buf, int len);
 int   gamelib_file_seek(gamelib_t *g, void *file, int offset, int whence);
